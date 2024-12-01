@@ -1,82 +1,125 @@
 ﻿using Discord;
 using Discord.WebSocket;
+using DiscordBot.Commands.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
-using Microsoft.Extensions.Configuration;
 
 namespace DiscordBot.Services
 {
     public class CommandHandler : ICommandHandler
     {
         private IConfigurationRepository _configurationRepository;
+        private IVoice _voice;
 
-        public CommandHandler(IConfigurationRepository configurationRepository)
+        private SocketSlashCommand? _command { get; set; }
+
+        public CommandHandler(IConfigurationRepository configurationRepository, IVoice voice)
         {
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(IConfigurationRepository));
+            _voice = voice ?? throw new NullReferenceException(nameof(IVoice));
         }
 
-        public async Task HandleButtonExecuted(SocketMessageComponent component)
+        public Task HandleButtonExecuted(SocketMessageComponent component)
         {
             if (component == null || component.User.IsBot)
             {
-                return;
+                return Task.CompletedTask;
             }
 
-            // Use components id to filter which one was pressed
-            switch (component.Data.CustomId)
+            // Run inside a task to avoid "handler is blocking the gateway task" errors
+            _ = Task.Run(async () =>
             {
-                case "id-play-button":
-                    await component.RespondAsync("Pressed id-play-button");
-                    break;
-            }
+                // Use components id to filter which one was pressed
+                switch (component.Data.CustomId)
+                {
+                    case "test":
+                        await component.RespondAsync("Pressed id-play-button");
+                        break;
+                    case "id-retry-playlink-button": // A retry button which is displayed after a failed voice channel join
+                        if (_command != null) await _voice.Play(_command, true);
+                        break;
+                    case "id-rewind-song-button":
+                        break;
+                    case "id-play-pause-song-button":
+                        break;
+                    case "id-skip-song-button":
+                        break;
+                }
+            });
+
+            return Task.CompletedTask;
         }
 
-        public async Task HandleMessageReceivedAsync(SocketMessage message)
+        public Task HandleMessageReceivedAsync(SocketMessage message)
         {
             // Ignore messages if prefix is missing or sender is a bot
             string prefix = _configurationRepository.GetPrefix();
 
             if (message == null || message.Content.IndexOf(prefix) != 0 || message.Author.IsBot)
             {
-                return;
+                return Task.CompletedTask;
             }
 
-            // Sanitize and remove prefix because switch cases HATE dynamic strings :)
-            string content = message.Content.Trim().Substring(1, message.Content.Length - prefix.Length);
-
-            switch (content)
+            // Run inside a task to avoid "handler is blocking the gateway task" errors
+            _ = Task.Run(async () =>
             {
-                case "aa":
-                    await message.Channel.SendMessageAsync($"Received message");
-                    break;
-            }
+                // Sanitize and remove prefix because switch cases HATE dynamic strings :)
+                string content = message.Content.Trim().Substring(1, message.Content.Length - prefix.Length);
 
-            return;
+                switch (content)
+                {
+                    case "test":
+                        await message.Channel.SendMessageAsync($"Received !test command");
+                        break;
+                }
+            });
+
+            return Task.CompletedTask;
         }
 
         public Task HandleReactionAddedAsync(Cacheable<IUserMessage, ulong> cacheable1, Cacheable<IMessageChannel, ulong> cacheable2, SocketReaction reaction)
         {
-            throw new NotImplementedException();
+            if (reaction.User.Value == null || reaction.User.Value.IsBot)
+            {
+                return Task.CompletedTask;
+            }
+
+            // Run inside a task to avoid "handler is blocking the gateway task" errorsd
+            _ = Task.Run(async () =>
+            {
+                await reaction.Channel.SendMessageAsync($"{reaction.User.Value.GlobalName} reacted to a message");
+
+            });
+
+            return Task.CompletedTask;
         }
 
         // Slash commands are created in DiscordClientService
-        public async Task HandleSlashCommandAsync(SocketSlashCommand command)
+        public Task HandleSlashCommandAsync(SocketSlashCommand command)
         {
-            if (command == null || command.CommandName == "" || command.User.IsBot)
+            _command = command;
+
+            if (_command == null || _command.CommandName == "" || _command.User.IsBot)
             {
-                return;
+                return Task.CompletedTask;
             }
 
-            ComponentBuilder builder = new ComponentBuilder().WithButton("Play", "id-play-button");
-
-            switch (command.CommandName)
+            // Run inside a task to avoid "handler is blocking the gateway task" errors
+            _ = Task.Run(async () =>
             {
-                case "play":
-                    await command.RespondAsync("Received play slashcommand", components: builder.Build());
-                    break;
-            }
+                switch (_command.CommandName)
+                {
+                    case "play":
+                        ComponentBuilder builder = new ComponentBuilder().WithButton("Play", "id-play-button").WithButton("Stop", "id-stop-button");
 
-            
+                        await _voice.Play(_command, false);
+                        break;
+                }
+
+                
+            });
+
+            return Task.CompletedTask;
         }
 
 

@@ -1,4 +1,6 @@
-﻿using DiscordBot.Repositories;
+﻿using DiscordBot.Commands;
+using DiscordBot.Commands.Interfaces;
+using DiscordBot.Repositories;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services;
 using DiscordBot.Services.Interfaces;
@@ -18,6 +20,7 @@ builder.Services.AddLogging(config =>
 // Add services
 builder.Services.AddTransient<IConfigurationRepository, ConfigurationRepository>();
 builder.Services.AddTransient<ICommandHandler, CommandHandler>();
+builder.Services.AddTransient<IVoice, Voice>();
 builder.Services.AddSingleton<IErrorHandler, ErrorHandler>();
 
 // Add DiscordService as a HostedService to run methods on startup

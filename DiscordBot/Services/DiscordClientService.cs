@@ -47,6 +47,7 @@ namespace DiscordBot.Services
 
             return Task.CompletedTask;
         }
+
         public async Task ClientReady()
         {
             // Display basic information about the bot in console
