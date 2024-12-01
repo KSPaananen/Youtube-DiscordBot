@@ -2,7 +2,7 @@
 {
     public interface IConfigurationRepository
     {
-        string GetName();
+        string GetClientSecret();
 
         string GetPrefix();
 

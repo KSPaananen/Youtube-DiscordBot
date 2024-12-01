@@ -17,10 +17,11 @@ builder.Services.AddLogging(config =>
 
 // Add services
 builder.Services.AddTransient<IConfigurationRepository, ConfigurationRepository>();
+builder.Services.AddTransient<ICommandHandler, CommandHandler>();
 builder.Services.AddSingleton<IErrorHandler, ErrorHandler>();
 
 // Add DiscordService as a HostedService to run methods on startup
-builder.Services.AddHostedService<DiscordService>();
+builder.Services.AddHostedService<DiscordClientService>();
 
 var app = builder.Build();
 

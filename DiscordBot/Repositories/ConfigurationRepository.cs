@@ -12,9 +12,9 @@ namespace DiscordBot.Repositories
             _config = config ?? throw new NullReferenceException(nameof(config));
         }
 
-        public string GetName()
+        public string GetClientSecret()
         {
-            return _config.GetSection("app:name").Value ?? throw new NullReferenceException();
+            return _config.GetSection("app:client_secret").Value ?? throw new NullReferenceException();
         }
 
         public string GetPrefix()
