@@ -17,5 +17,6 @@ namespace DiscordBot.Services.Interfaces
         Task HandleReactionAddedAsync(Cacheable<IUserMessage, ulong> cacheable1, Cacheable<IMessageChannel, ulong> cacheable2, SocketReaction reaction);
 
         Task HandleButtonExecuted(SocketMessageComponent component);
+
     }
 }

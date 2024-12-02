@@ -76,12 +76,19 @@ namespace DiscordBot.Services
             List<ApplicationCommandProperties> globalAppCommandsList = new();
 
             // Play music command
-            SlashCommandBuilder globalPlayCommand = new ();
+            var globalPlayCommand = new SlashCommandBuilder();
 
             globalPlayCommand.WithName("play");
             globalPlayCommand.WithDescription("Play music in a voicechat. For example: /play ");
             globalPlayCommand.AddOption("link", ApplicationCommandOptionType.String, "The user who requested resource.");
             globalAppCommandsList.Add(globalPlayCommand.Build()); // Add to global commands list
+
+            // clear music queue command
+            var globalClearQueueCommand = new SlashCommandBuilder();
+
+            globalClearQueueCommand.WithName("clear-queue");
+            globalClearQueueCommand.WithDescription("Clear music queue");
+            globalAppCommandsList.Add(globalClearQueueCommand.Build());
 
             // Write all global command from list
             await _client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray());

@@ -35,8 +35,8 @@ namespace DiscordBot.Services
                     case "test":
                         await component.RespondAsync("Pressed id-play-button");
                         break;
-                    case "id-retry-playlink-button": // A retry button which is displayed after a failed voice channel join
-                        if (_command != null) await _voice.Play(_command, true);
+                    case "id-retry-playlink-button":
+                        if (_command != null) await _voice.Play(_command);
                         break;
                     case "id-rewind-song-button":
                         break;
@@ -110,18 +110,18 @@ namespace DiscordBot.Services
                 switch (_command.CommandName)
                 {
                     case "play":
-                        ComponentBuilder builder = new ComponentBuilder().WithButton("Play", "id-play-button").WithButton("Stop", "id-stop-button");
-
-                        await _voice.Play(_command, false);
+                        await _voice.Play(_command);
                         break;
+                    case "clear-queue":
+                        await _voice.ClearQueue(_command);
+                        break;
+
                 }
 
-                
             });
 
             return Task.CompletedTask;
         }
-
 
     }
 }
