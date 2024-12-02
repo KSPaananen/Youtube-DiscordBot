@@ -18,23 +18,6 @@ namespace DiscordBot.Commands
             _queue = new List<string>();
         }
 
-        public Task ClearQueue(SocketSlashCommand command)
-        {
-            try
-            {
-                _queue.Clear();
-
-                return Task.CompletedTask;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-
-                return Task.CompletedTask;
-            }
-        }
-
-        // Entry method
         public async Task Play(SocketSlashCommand command)
         {
             // Try joining voice chat if not already connected
@@ -52,7 +35,7 @@ namespace DiscordBot.Commands
                     return;
                 }
             }
-           
+
             // Add song to queue
             bool addToQueueSuccess = await AddSongToQueue(command);
 
@@ -70,10 +53,40 @@ namespace DiscordBot.Commands
             // Start streaming audio
             bool streamingSuccees = await StreamAudio(command);
 
-           
 
 
 
+
+        }
+
+        public async Task ListQueue(SocketSlashCommand command)
+        {
+            try
+            {
+                await Respond(command, "notify-queue-listed");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        public async Task ClearQueue(SocketSlashCommand command)
+        {
+            try
+            {
+                _queue.Clear();
+
+                await Respond(command, "notify-queue-cleared");
+
+                return;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+
+                return;
+            }
         }
 
         private async Task<bool> Join(SocketSlashCommand command)
@@ -188,31 +201,51 @@ namespace DiscordBot.Commands
         {
             try
             {
+                string message = "";
+
                 switch (type)
                 {
                     case "notify-playing":
                         var notifyPlayingBuilder = new ComponentBuilder()
-                            .WithButton("⏮", "id-rewind-song-button")
-                            .WithButton("⏯", "id-play-pause-song-button")
-                            .WithButton("⏭", "id-skip-song-button");
+                            .WithButton("Rewind", "id-rewind-song-button")
+                            .WithButton("Stop playing", "id-stop-playing-button")
+                            .WithButton("Skip", "id-skip-song-button");
 
                         if (_queue.Count() > 0)
                         {
-                            await command.RespondAsync($"Now playing {_queue.First()}", components: notifyPlayingBuilder.Build());
+                            message = $"Now playing {_queue.First()}";
                         }
                         else
                         {
-                            await command.RespondAsync($"Queue empty");
+                            message = $"Queue empty";
                         }
 
+                        await command.RespondAsync(message, components: notifyPlayingBuilder.Build());
                         break;
                     case "notify-not-in-voice-chat":
-                        var notifyNotInVcBuilder = new ComponentBuilder().WithButton("Retry", "id-retry-playlink-button");
+                        message = $"{command.User.Mention} try joining a voice channel before requesting /play -_-";
 
-                        await command.RespondAsync($"{command.User.Mention} try joining a voice channel before requesting /play -_-", components: notifyNotInVcBuilder.Build());
+                        await command.RespondAsync(message);
                         break;
                     case "notify-error-adding-to-queue":
-                        await command.RespondAsync($"Error adding song to queue");
+                        message = $"Error adding song to queue";
+
+                        await command.RespondAsync(message);
+                        break;
+                    case "notify-queue-listed":
+                        message = $"List of songs in the queue: \n";
+
+                        for (int i = 0; i < _queue.Count(); i++)
+                        {
+                            message += $"- {_queue[i]} \n";
+                        }
+
+                        await command.RespondAsync(message);
+                        break;
+                    case "notify-queue-cleared":
+                        message = $"Queue cleared";
+
+                        await command.RespondAsync(message);
                         break;
                 }
 
@@ -226,32 +259,6 @@ namespace DiscordBot.Commands
             }
         }
 
-      
-
-
-
-        //private async Task<bool> RetryJoin(SocketSlashCommand command)
-        //{
-        //    var guildUser = (command.User as IGuildUser);
-
-        //    if (guildUser == null)
-        //    {
-        //        return false;
-        //    }
-
-        //    _channel = guildUser.VoiceChannel;
-
-        //    if (_channel == null)
-        //    {
-        //        await command.DeleteOriginalResponseAsync();
-
-        //        return false;
-        //    }
-
-        //    _audioClient = await _channel.ConnectAsync();
-
-        //    return true;
-        //}
 
     }
 }

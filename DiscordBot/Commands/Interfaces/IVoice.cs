@@ -13,5 +13,7 @@ namespace DiscordBot.Commands.Interfaces
         Task Play(SocketSlashCommand command);
 
         Task ClearQueue(SocketSlashCommand command);
+
+        Task ListQueue(SocketSlashCommand command);
     }
 }

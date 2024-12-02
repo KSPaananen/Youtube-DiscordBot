@@ -11,8 +11,6 @@ namespace DiscordBot.Services
         private IConfigurationRepository _configurationRepository;
         private IVoice _voice;
 
-        private SocketSlashCommand? _command { get; set; }
-
         public CommandHandler(IConfigurationRepository configurationRepository, IVoice voice)
         {
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(IConfigurationRepository));
@@ -35,16 +33,42 @@ namespace DiscordBot.Services
                     case "test":
                         await component.RespondAsync("Pressed id-play-button");
                         break;
-                    case "id-retry-playlink-button":
-                        if (_command != null) await _voice.Play(_command);
-                        break;
                     case "id-rewind-song-button":
                         break;
-                    case "id-play-pause-song-button":
+                    case "id-stop-playing-button":
                         break;
                     case "id-skip-song-button":
                         break;
                 }
+            });
+
+            return Task.CompletedTask;
+        }
+
+        // Slash commands are created in DiscordClientService
+        public Task HandleSlashCommandAsync(SocketSlashCommand command)
+        {
+            if (command == null || command.CommandName == "" || command.User.IsBot)
+            {
+                return Task.CompletedTask;
+            }
+
+            // Run inside a task to avoid "handler is blocking the gateway task" errors
+            _ = Task.Run(async () =>
+            {
+                switch (command.CommandName)
+                {
+                    case "play":
+                        await _voice.Play(command);
+                        break;
+                    case "list-queue":
+                        break;
+                    case "clear-queue":
+                        await _voice.ClearQueue(command);
+                        break;
+
+                }
+
             });
 
             return Task.CompletedTask;
@@ -88,35 +112,6 @@ namespace DiscordBot.Services
             _ = Task.Run(async () =>
             {
                 await reaction.Channel.SendMessageAsync($"{reaction.User.Value.GlobalName} reacted to a message");
-
-            });
-
-            return Task.CompletedTask;
-        }
-
-        // Slash commands are created in DiscordClientService
-        public Task HandleSlashCommandAsync(SocketSlashCommand command)
-        {
-            _command = command;
-
-            if (_command == null || _command.CommandName == "" || _command.User.IsBot)
-            {
-                return Task.CompletedTask;
-            }
-
-            // Run inside a task to avoid "handler is blocking the gateway task" errors
-            _ = Task.Run(async () =>
-            {
-                switch (_command.CommandName)
-                {
-                    case "play":
-                        await _voice.Play(_command);
-                        break;
-                    case "clear-queue":
-                        await _voice.ClearQueue(_command);
-                        break;
-
-                }
 
             });
 

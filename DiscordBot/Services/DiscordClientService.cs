@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using System;
 
 namespace DiscordBot.Services
@@ -81,7 +82,13 @@ namespace DiscordBot.Services
             globalPlayCommand.WithName("play");
             globalPlayCommand.WithDescription("Play music in a voicechat. For example: /play ");
             globalPlayCommand.AddOption("link", ApplicationCommandOptionType.String, "The user who requested resource.");
-            globalAppCommandsList.Add(globalPlayCommand.Build()); // Add to global commands list
+            globalAppCommandsList.Add(globalPlayCommand.Build());
+
+            // List music queue command
+            var globalListQueueCommand = new SlashCommandBuilder();
+            globalListQueueCommand.WithName("list-queue");
+            globalListQueueCommand.WithDescription("List all songs in the queue");
+            globalAppCommandsList.Add(globalListQueueCommand.Build());
 
             // clear music queue command
             var globalClearQueueCommand = new SlashCommandBuilder();
@@ -91,7 +98,12 @@ namespace DiscordBot.Services
             globalAppCommandsList.Add(globalClearQueueCommand.Build());
 
             // Write all global command from list
-            await _client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray());
+            var requestOptions = new RequestOptions()
+            {
+                RetryMode = RetryMode.Retry502,
+            };
+
+            await _client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray(), requestOptions);
 
             return;
         }
