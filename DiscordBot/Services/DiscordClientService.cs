@@ -24,8 +24,23 @@ namespace DiscordBot.Services
             // Set socket configurations
             var socketConfig = new DiscordSocketConfig
             {
-                // To define multiple intents, do GatewayIntents.MessageContent | GatewayIntents.Guilds | etc...
-                GatewayIntents = GatewayIntents.All
+                // Syntax for multiple GatewayIntents GatewayIntents.Guilds | GatewayIntents.GuildBans | ...
+                // These are all unprivileged intents except:
+                // - GuildScheduledEvents
+                // - GuildInvites
+                GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildBans | GatewayIntents.GuildEmojis | GatewayIntents.GuildIntegrations | 
+                    GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | 
+                    GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping | 
+                    GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls | 
+                    GatewayIntents.DirectMessagePolls ,
+
+                MessageCacheSize = 10,
+                AlwaysDownloadDefaultStickers = true,
+                AlwaysResolveStickers = true,
+                AlwaysDownloadUsers = true,
+                AuditLogCacheSize = 10,
+                LogLevel = LogSeverity.Info
+                
             };
 
             // Create a new client
@@ -86,6 +101,7 @@ namespace DiscordBot.Services
 
             // List music queue command
             var globalListQueueCommand = new SlashCommandBuilder();
+
             globalListQueueCommand.WithName("list-queue");
             globalListQueueCommand.WithDescription("List all songs in the queue");
             globalAppCommandsList.Add(globalListQueueCommand.Build());
@@ -97,12 +113,12 @@ namespace DiscordBot.Services
             globalClearQueueCommand.WithDescription("Clear music queue");
             globalAppCommandsList.Add(globalClearQueueCommand.Build());
 
-            // Write all global command from list
             var requestOptions = new RequestOptions()
             {
                 RetryMode = RetryMode.Retry502,
             };
 
+            // Write all global command from list
             await _client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray(), requestOptions);
 
             return;

@@ -62,6 +62,7 @@ namespace DiscordBot.Services
                         await _voice.Play(command);
                         break;
                     case "list-queue":
+                        await _voice.ListQueue(command);
                         break;
                     case "clear-queue":
                         await _voice.ClearQueue(command);
@@ -74,6 +75,8 @@ namespace DiscordBot.Services
             return Task.CompletedTask;
         }
 
+        // MessageReceived requires a privileged intent GatewayIntent.MessageContent
+        // Use SlashCommands instead
         public Task HandleMessageReceivedAsync(SocketMessage message)
         {
             // Ignore messages if prefix is missing or sender is a bot
@@ -111,6 +114,8 @@ namespace DiscordBot.Services
             // Run inside a task to avoid "handler is blocking the gateway task" errorsd
             _ = Task.Run(async () =>
             {
+                
+
                 await reaction.Channel.SendMessageAsync($"{reaction.User.Value.GlobalName} reacted to a message");
 
             });
