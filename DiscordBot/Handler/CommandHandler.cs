@@ -1,20 +1,20 @@
 ﻿using Discord;
 using Discord.WebSocket;
-using DiscordBot.Commands.Interfaces;
+using DiscordBot.Handler.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 
-namespace DiscordBot.Services
+namespace DiscordBot.Handler
 {
     public class CommandHandler : ICommandHandler
     {
         private IConfigurationRepository _configurationRepository;
-        private IVoice _voice;
+        private IVoiceService _voice;
 
-        public CommandHandler(IConfigurationRepository configurationRepository, IVoice voice)
+        public CommandHandler(IConfigurationRepository configurationRepository, IVoiceService voice)
         {
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(IConfigurationRepository));
-            _voice = voice ?? throw new NullReferenceException(nameof(IVoice));
+            _voice = voice ?? throw new NullReferenceException(nameof(IVoiceService));
         }
 
         public Task HandleButtonExecuted(SocketMessageComponent component)
@@ -114,7 +114,7 @@ namespace DiscordBot.Services
             // Run inside a task to avoid "handler is blocking the gateway task" errorsd
             _ = Task.Run(async () =>
             {
-                
+
 
                 await reaction.Channel.SendMessageAsync($"{reaction.User.Value.GlobalName} reacted to a message");
 
@@ -122,6 +122,7 @@ namespace DiscordBot.Services
 
             return Task.CompletedTask;
         }
+
 
     }
 }

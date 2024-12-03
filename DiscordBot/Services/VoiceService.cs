@@ -1,20 +1,26 @@
 ﻿using Discord;
 using Discord.Audio;
 using Discord.WebSocket;
-using DiscordBot.Commands.Interfaces;
+using DiscordBot.Modules.Interfaces;
+using DiscordBot.Services.Interfaces;
+using System.IO;
 
-namespace DiscordBot.Commands
+namespace DiscordBot.Services
 {
-    public class Voice : IVoice
+    public class VoiceService : IVoiceService
     {
+        private IAudio _audio;
+
         private IVoiceChannel? _channel;
         private IAudioClient? _audioClient;
 
         private List<string> _queue;
         private ConnectionState _connectionState;
 
-        public Voice()
+        public VoiceService(IAudio audio)
         {
+            _audio = audio ?? throw new NullReferenceException(nameof(audio));
+
             _queue = new List<string>();
         }
 
@@ -93,7 +99,7 @@ namespace DiscordBot.Commands
         {
             try
             {
-                var guildUser = (command.User as IGuildUser);
+                var guildUser = command.User as IGuildUser;
 
                 if (guildUser == null)
                 {
@@ -110,6 +116,11 @@ namespace DiscordBot.Commands
 
                 // Connect to voicechat
                 _audioClient = await _channel.ConnectAsync();
+
+                if (_audioClient.ConnectionState == ConnectionState.Connecting)
+                {
+                    Thread.Sleep(1000);
+                }
 
                 return true;
             }
@@ -150,13 +161,22 @@ namespace DiscordBot.Commands
         {
             try
             {
-                // Add first parameter to queue
-                if (command.Data.Options.First().Value.ToString() == null || command.Data.Options.First().Value.ToString() == "")
+                string? firstParam = command.Data.Options.First().Value.ToString();
+
+                if (firstParam == null || firstParam == "")
                 {
                     return Task.FromResult(false);
                 }
 
-                _queue.Add(command.Data.Options.First().Value.ToString()!);
+                // Extract audio uri from link
+                string audioUri = _audio.GetAudioUrlFromLink(firstParam);
+
+                if (audioUri == "")
+                {
+                    return Task.FromResult(false);
+                }
+
+                _queue.Add(audioUri);
 
                 return Task.FromResult(true);
             }
@@ -183,9 +203,24 @@ namespace DiscordBot.Commands
                 // Respond to command
                 await Respond(command, "notify-playing");
 
-                // Start streaming audio
-                // --
-                // --
+                using (var ffmpeg = _audio.GetAudioStreamFromUrl(link))
+                using (var output = ffmpeg.StandardOutput.BaseStream)
+                using (var discord = _audioClient.CreatePCMStream(AudioApplication.Music))
+                {
+                    try
+                    {
+                        var buffer = new byte[1024];  // You might need to adjust the buffer size
+                        int bytesRead;
+                        while ((bytesRead = await output.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            await discord.WriteAsync(buffer, 0, bytesRead);
+                        }
+                    }
+                    finally
+                    {
+                        await discord.FlushAsync();
+                    }
+                }
 
                 return true;
             }

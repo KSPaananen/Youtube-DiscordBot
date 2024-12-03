@@ -1,12 +1,27 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
-
 # Base runtime image used when running from VS in fast mode (Default for Debug configuration)
 FROM mcr.microsoft.com/dotnet/runtime:8.0 AS base
 WORKDIR /app
 
-# Install libopus for Discord voice functionality
+# Install dependencies, libopus for Discord voice functionality, FFmpeg for media handling, and Python tools
 USER root
-RUN apt-get update && apt-get install -y libopus-dev && apt-get clean
+RUN apt-get update && apt-get install -y \
+    libopus-dev \
+    ffmpeg \
+    python3 \
+    python3-pip \
+    python3-dev \
+    build-essential \
+    curl \
+    python3-venv && \
+    apt-get clean
+
+# Create a virtual environment and install yt-dlp
+RUN python3 -m venv /venv && \
+    /venv/bin/pip install --upgrade pip && \
+    /venv/bin/pip install yt-dlp
+
+# Use the virtual environment for running the app
+ENV PATH="/venv/bin:$PATH"
 
 USER app
 

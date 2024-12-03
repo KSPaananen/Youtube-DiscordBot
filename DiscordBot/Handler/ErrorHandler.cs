@@ -1,7 +1,7 @@
-﻿using DiscordBot.Services.Interfaces;
+﻿using DiscordBot.Handler.Interfaces;
 using System;
 
-namespace DiscordBot.Services
+namespace DiscordBot.Handler
 {
     public class ErrorHandler : IErrorHandler
     {

@@ -1,11 +1,9 @@
 ﻿using Discord;
-using Discord.Commands;
 using Discord.WebSocket;
+using DiscordBot.Handler.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
-using System;
 
 namespace DiscordBot.Services
 {
@@ -28,19 +26,20 @@ namespace DiscordBot.Services
                 // These are all unprivileged intents except:
                 // - GuildScheduledEvents
                 // - GuildInvites
-                GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildBans | GatewayIntents.GuildEmojis | GatewayIntents.GuildIntegrations | 
-                    GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions | 
-                    GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping | 
-                    GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls | 
-                    GatewayIntents.DirectMessagePolls ,
+                //GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildBans | GatewayIntents.GuildEmojis | GatewayIntents.GuildIntegrations |
+                //    GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions |
+                //    GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping |
+                //    GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls |
+                //    GatewayIntents.DirectMessagePolls,
+                GatewayIntents = GatewayIntents.All,
 
                 MessageCacheSize = 10,
                 AlwaysDownloadDefaultStickers = true,
                 AlwaysResolveStickers = true,
                 AlwaysDownloadUsers = true,
                 AuditLogCacheSize = 10,
-                LogLevel = LogSeverity.Info
-                
+                LogLevel = LogSeverity.Verbose
+
             };
 
             // Create a new client

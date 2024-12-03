@@ -1,4 +1,4 @@
-﻿namespace DiscordBot.Services.Interfaces
+﻿namespace DiscordBot.Handler.Interfaces
 {
     public interface IErrorHandler
     {
