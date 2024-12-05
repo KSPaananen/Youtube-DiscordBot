@@ -33,19 +33,18 @@ namespace DiscordBot.Services
 
             var socketConfig = new DiscordSocketConfig
             {
-                // Syntax for multiple GatewayIntents GatewayIntents.Guilds | GatewayIntents.GuildBans | ...
-                // These are all unprivileged intents except:
+                // Enabled all unprivileged intents except:
                 // - GuildScheduledEvents
                 // - GuildInvites
                 GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildBans | GatewayIntents.GuildEmojis | GatewayIntents.GuildIntegrations |
                     GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions |
                     GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping |
                     GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls |
-                    GatewayIntents.DirectMessagePolls,
+                    GatewayIntents.DirectMessagePolls ,
                 MessageCacheSize = 10,
                 AlwaysDownloadDefaultStickers = true,
                 AlwaysResolveStickers = true,
-                AlwaysDownloadUsers = true,
+                AlwaysDownloadUsers = false,
                 AuditLogCacheSize = 10,
                 LogLevel = LogSeverity.Warning
 
@@ -76,9 +75,16 @@ namespace DiscordBot.Services
             _client.Log += LogAsync;
         }
 
-        private Task LogAsync(LogMessage message)
+        private Task LogAsync(LogMessage log)
         {
-            Console.WriteLine($"> {message.Message}");
+            if (log.Exception != null && log.Exception.Message != "")
+            {
+                Console.WriteLine($"> {log.Exception.Message}");
+            }
+            else if (log.Message != null && log.Message != "")
+            {
+                Console.WriteLine($"> [Error]: {log.Message}");
+            }
 
             return Task.CompletedTask;
         }
@@ -95,17 +101,27 @@ namespace DiscordBot.Services
             {
                 case LoginState.LoggedIn:
                     Console.WriteLine($"> Bot information: \n  " +
-                        $"- Globalname: {_client.CurrentUser.GlobalName} \n  " +
-                        $"- Username: {_client.CurrentUser.Username} \n  " +
-                        $"- Current status: {_client.CurrentUser.Status}");
+                        $"- ID: {_client.CurrentUser.Id} \n  " +
+                        $"- Display name: {_client.CurrentUser.Username} \n  " +
+                        $"- Username: {_client.CurrentUser.Username}#{_client.CurrentUser.Discriminator} \n  " +
+                        $"- Current status: {_client.CurrentUser.Status} \n  " +
+                        $"- Verified: {_client.CurrentUser.IsVerified} \n  " +
+                        $"- Mfa: {_client.CurrentUser.IsMfaEnabled} \n  " +
+                        $"- Clients: {_client.CurrentUser.ActiveClients.Count} \n  " +
+                        $"- Created: {(_client.CurrentUser.CreatedAt.UtcDateTime).ToString().Substring(0, (_client.CurrentUser.CreatedAt.UtcDateTime).ToString().IndexOf(" "))} ");
+                        
                     break;
                 case LoginState.LoggedOut:
                     Console.WriteLine($"> Error logging in. Check that the tokens and keys are correct");
                     break;
             }
 
+            Console.WriteLine($"> Creating slash commands...");
+
             // Create new slash commands on app start
             _slashCommandHandler.CreateSlashCommandsAsync(_client);
+
+            Console.WriteLine($"> Bot ready");
 
             return Task.CompletedTask;
         }
@@ -118,12 +134,15 @@ namespace DiscordBot.Services
             // Login
             string botToken = _configurationRepository.GetBotToken();
 
+            Console.WriteLine($"> Logging in...");
             await _client.LoginAsync(TokenType.Bot, botToken, true);
             await _client.StartAsync();
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
+            Console.WriteLine($"> Logging out");
+
             // Logout client
             await _client.LogoutAsync();
 
