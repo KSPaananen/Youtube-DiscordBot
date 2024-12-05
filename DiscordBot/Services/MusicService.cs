@@ -46,7 +46,6 @@ namespace DiscordBot.Services
             {
                 _audioClient = await _channel.ConnectAsync(true, false, false, false);
                 _audioClient.Connected += ClientConnected;
-                _audioClient.StreamCreated += StreamCreated;
                 _audioClient.ClientDisconnected += ClientDisconnected;
 
                 _connectionState = _audioClient.ConnectionState;
@@ -77,6 +76,11 @@ namespace DiscordBot.Services
                 // Extract audio url from link and add it to audio queue
                 string audioUrl = _ytDlp.GetAudioUrlFromLink(url);
 
+                if (String.IsNullOrEmpty(audioUrl))
+                {
+                    return;
+                }
+
                 _audioQueue.Add(audioUrl);
             }
             else
@@ -85,11 +89,29 @@ namespace DiscordBot.Services
             }
 
             // Start streaming audio
-            using (var output = _ffmpeg.GetAudioStreamFromUrl(_audioQueue.First()))
-            using (var discord = _audioClient.CreatePCMStream(AudioApplication.Mixed))
+            using (var ffmpegStream = _ffmpeg.GetAudioStreamFromUrl(_audioQueue.First()))
+            using (var outStream = _audioClient.CreatePCMStream(AudioApplication.Music))
             {
-                try { await output.CopyToAsync(discord); }
-                finally { await discord.FlushAsync(); }
+                try 
+                {
+                    byte[] buffer = new byte[3840];
+                    int bytesRead;
+
+                    while ((bytesRead = await ffmpegStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    {
+                        await outStream.WriteAsync(buffer, 0, bytesRead);
+                    }
+                }
+                catch
+                {
+
+                }
+                finally 
+                { 
+                    await outStream.FlushAsync();
+                    ffmpegStream.Dispose();
+
+                }
             }
         }
 
@@ -105,14 +127,6 @@ namespace DiscordBot.Services
             {
                 _audioClient.Dispose();
             }
-
-            return Task.CompletedTask;
-        }
-
-        private Task StreamCreated(ulong number, AudioInStream stream)
-        {
-            var test1 = stream;
-            var test2 = number;
 
             return Task.CompletedTask;
         }

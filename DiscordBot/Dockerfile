@@ -6,6 +6,7 @@ WORKDIR /app
 USER root
 RUN apt-get update && apt-get install -y \
     libopus-dev \
+    libsodium-dev \
     ffmpeg \
     python3 \
     python3-pip \

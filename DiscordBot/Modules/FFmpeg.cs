@@ -1,10 +1,5 @@
 ﻿using DiscordBot.Modules.Interfaces;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DiscordBot.Modules
 {
@@ -21,10 +16,11 @@ namespace DiscordBot.Modules
             {
                 StartInfo = new ProcessStartInfo
                 {
+                    // Keep RedirectStandardOutput & RedirectStandardError set as 'true' or it will not work
                     FileName = "ffmpeg",
-                    Arguments = $"-i \"{url}\" -ac 2 -ar 48000 -f s16le pipe:1",
+                    Arguments = $"-re -i \"{url}\" -ac 2 -ar 48000 -f s16le pipe:1", // Add -hide_banner -loglevel error to quiet output
                     RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    RedirectStandardError = true, 
                     UseShellExecute = false,
                 }
             };

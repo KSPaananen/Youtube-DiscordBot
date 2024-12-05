@@ -47,7 +47,7 @@ namespace DiscordBot.Services
                 AlwaysResolveStickers = true,
                 AlwaysDownloadUsers = true,
                 AuditLogCacheSize = 10,
-                LogLevel = LogSeverity.Verbose
+                LogLevel = LogSeverity.Warning
 
             };
 
