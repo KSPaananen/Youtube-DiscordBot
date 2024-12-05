@@ -10,29 +10,38 @@ namespace DiscordBot.Services
     // Inherit IHostedService to run methods on app start
     public class DiscordClientService : IDiscordClientService, IHostedService, IDisposable
     {
-        private DiscordSocketClient _client;
         private IConfigurationRepository _configurationRepository;
-        private ICommandHandler _commandHandler;
 
-        public DiscordClientService(IConfigurationRepository configurationRepository, ICommandHandler commandHandler)
+        private ISlashCommandHandler _slashCommandHandler;
+        private IReactionHandler _reactionHandler;
+        private IUserHandler _userHandler;
+        private IButtonHandler _buttonHandler;
+        private IMessageHandler _messageHandler;
+
+        private DiscordSocketClient _client;
+
+        public DiscordClientService(IConfigurationRepository configurationRepository, ISlashCommandHandler slashCommandHandler, IReactionHandler reactionHandler,
+            IUserHandler userHandler, IButtonHandler buttonHandler, IMessageHandler messageHandler)
         {
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(IConfigurationRepository));
-            _commandHandler = commandHandler ?? throw new NullReferenceException(nameof(ICommandHandler));
 
-            // Set socket configurations
+            _slashCommandHandler = slashCommandHandler ?? throw new NullReferenceException(nameof(slashCommandHandler));
+            _reactionHandler = reactionHandler ?? throw new NullReferenceException(nameof(reactionHandler));
+            _userHandler = userHandler ?? throw new NullReferenceException(nameof(userHandler));
+            _buttonHandler = buttonHandler ?? throw new NullReferenceException(nameof(buttonHandler));
+            _messageHandler = messageHandler ?? throw new NullReferenceException(nameof(messageHandler));
+
             var socketConfig = new DiscordSocketConfig
             {
                 // Syntax for multiple GatewayIntents GatewayIntents.Guilds | GatewayIntents.GuildBans | ...
                 // These are all unprivileged intents except:
                 // - GuildScheduledEvents
                 // - GuildInvites
-                //GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildBans | GatewayIntents.GuildEmojis | GatewayIntents.GuildIntegrations |
-                //    GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions |
-                //    GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping |
-                //    GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls |
-                //    GatewayIntents.DirectMessagePolls,
-                GatewayIntents = GatewayIntents.All,
-
+                GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildBans | GatewayIntents.GuildEmojis | GatewayIntents.GuildIntegrations |
+                    GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions |
+                    GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping |
+                    GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls |
+                    GatewayIntents.DirectMessagePolls,
                 MessageCacheSize = 10,
                 AlwaysDownloadDefaultStickers = true,
                 AlwaysResolveStickers = true,
@@ -45,25 +54,41 @@ namespace DiscordBot.Services
             // Create a new client
             _client = new DiscordSocketClient(socketConfig);
 
-            // Tie methods to sockets
-            _client.SlashCommandExecuted += _commandHandler.HandleSlashCommandAsync;
-            _client.MessageReceived += _commandHandler.HandleMessageReceivedAsync;
-            _client.ReactionAdded += _commandHandler.HandleReactionAddedAsync;
-            _client.ButtonExecuted += _commandHandler.HandleButtonExecuted;
+            _client.SlashCommandExecuted += _slashCommandHandler.HandleSlashCommandAsync;
 
-            _client.Log += LogAsync;
+            _client.ReactionAdded += _reactionHandler.HandleReactionAddedAsync;
+            _client.ReactionRemoved += _reactionHandler.HandleReactionRemovedAsync;
+            _client.ReactionsCleared += _reactionHandler.HandleReactionsClearedAsync;
+
+            _client.UserJoined += _userHandler.HandleUserJoinedAsync;
+            _client.UserLeft += _userHandler.HandleUserLeftAsync;
+            _client.UserBanned += _userHandler.HandleUserBannedAsync;
+            _client.UserUnbanned += _userHandler.HandleUserUnBannedAsync;
+
+            _client.ButtonExecuted += _buttonHandler.HandleButtonExecutedAsync;
+
+            _client.MessageCommandExecuted += _messageHandler.HandleMessageCommandExecutedAsync;
+            _client.MessageReceived += _messageHandler.HandleMessageReceivedAsync;
+            _client.MessageDeleted += _messageHandler.HandleMessageDeletedAsync;
+            _client.MessageUpdated += _messageHandler.HandleMessageUpdatedAsync;
+
             _client.Ready += ClientReady;
-
+            _client.Log += LogAsync;
         }
 
-        public Task LogAsync(LogMessage message)
+        private Task LogAsync(LogMessage message)
         {
             Console.WriteLine($"> {message.Message}");
 
             return Task.CompletedTask;
         }
 
-        public async Task ClientReady()
+        public DiscordSocketClient GetClient()
+        {
+            return _client;
+        }
+
+        private Task ClientReady()
         {
             // Display basic information about the bot in console
             switch (_client.LoginState)
@@ -79,49 +104,12 @@ namespace DiscordBot.Services
                     break;
             }
 
-            // Create different commands to be used
-            await CreateSlashCommands();
+            // Create new slash commands on app start
+            _slashCommandHandler.CreateSlashCommandsAsync(_client);
 
-            return;
+            return Task.CompletedTask;
         }
 
-        public async Task CreateSlashCommands()
-        {
-            // Add all commands to this list
-            List<ApplicationCommandProperties> globalAppCommandsList = new();
-
-            // Play music command
-            var globalPlayCommand = new SlashCommandBuilder();
-
-            globalPlayCommand.WithName("play");
-            globalPlayCommand.WithDescription("Play music in a voicechat. For example: /play ");
-            globalPlayCommand.AddOption("link", ApplicationCommandOptionType.String, "The user who requested resource.");
-            globalAppCommandsList.Add(globalPlayCommand.Build());
-
-            // List music queue command
-            var globalListQueueCommand = new SlashCommandBuilder();
-
-            globalListQueueCommand.WithName("list-queue");
-            globalListQueueCommand.WithDescription("List all songs in the queue");
-            globalAppCommandsList.Add(globalListQueueCommand.Build());
-
-            // clear music queue command
-            var globalClearQueueCommand = new SlashCommandBuilder();
-
-            globalClearQueueCommand.WithName("clear-queue");
-            globalClearQueueCommand.WithDescription("Clear music queue");
-            globalAppCommandsList.Add(globalClearQueueCommand.Build());
-
-            var requestOptions = new RequestOptions()
-            {
-                RetryMode = RetryMode.Retry502,
-            };
-
-            // Write all global command from list
-            await _client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray(), requestOptions);
-
-            return;
-        }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {

@@ -1,38 +1,21 @@
 ﻿using DiscordBot.Modules.Interfaces;
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace DiscordBot.Modules
 {
-    public class Audio : IAudio
+    public class FFmpeg : IFFmpeg
     {
-        public Audio()
+        public FFmpeg()
         {
 
         }
 
-        public string GetAudioUrlFromLink(string link)
-        {
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "yt-dlp",
-                    Arguments = $"--quiet -f bestaudio -g \"{link}\"",
-                    //Arguments = $"--quiet --no-warnings -f bestaudio -g \"{url}\"",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                }
-            };
-
-            process.Start();
-
-            string audioUrl = process.StandardOutput.ReadToEnd().Trim();
-
-            return audioUrl;
-        }
-
-        public Process GetAudioStreamFromUrl(string url)
+        public Stream GetAudioStreamFromUrl(string url)
         {
             var process = new Process
             {
@@ -58,7 +41,7 @@ namespace DiscordBot.Modules
 
             process.BeginErrorReadLine();
 
-            return process;
+            return process.StandardOutput.BaseStream;
         }
 
 

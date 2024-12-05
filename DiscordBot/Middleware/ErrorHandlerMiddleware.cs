@@ -1,11 +1,11 @@
-﻿using DiscordBot.Handler.Interfaces;
+﻿using DiscordBot.Middleware.Interfaces;
 using System;
 
-namespace DiscordBot.Handler
+namespace DiscordBot.Middleware
 {
-    public class ErrorHandler : IErrorHandler
+    public class ErrorHandlerMiddleware : IErrorHandlerMiddleware
     {
-        public ErrorHandler()
+        public ErrorHandlerMiddleware()
         {
 
         }
