@@ -3,7 +3,6 @@ using Discord.Audio;
 using Discord.WebSocket;
 using DiscordBot.Modules.Interfaces;
 using DiscordBot.Services.Interfaces;
-using System.IO;
 
 namespace DiscordBot.Services
 {
@@ -15,145 +14,221 @@ namespace DiscordBot.Services
         private SocketSlashCommand? _command;
         private IVoiceChannel? _channel;
         private IAudioClient? _audioClient;
-        private ConnectionState _connectionState;
 
-        private List<string> _audioQueue;
-        private List<string> _displayQueue;
+        private List<string> _videoUrlQueue;
+        private List<string> _audioUrlQueue;
 
+        private bool _firstSong;
 
         public MusicService(IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
             _ytDlp = ytDlp ?? throw new NullReferenceException(nameof(ytDlp));
             _ffmpeg = ffmpeg ?? throw new NullReferenceException(nameof(ffmpeg));
 
-            _audioQueue = new List<string>();
-            _displayQueue = new List<string>();
+            _videoUrlQueue = new List<string>();
+            _audioUrlQueue = new List<string>();
         }
 
         public async Task Play(SocketSlashCommand command)
         {
-            _command = command;
-
-            if (_command.User is not IGuildUser user)
+            try
             {
-                return;
-            }
+                _command = command;
 
-            _channel = user.VoiceChannel;
-
-            // Join if bot is in disconnected state
-            if (_connectionState == ConnectionState.Disconnected && _channel != null)
-            {
-                _audioClient = await _channel.ConnectAsync(true, false, false, false);
-                _audioClient.Connected += ClientConnected;
-                _audioClient.ClientDisconnected += ClientDisconnected;
-
-                _connectionState = _audioClient.ConnectionState;
-
-                if (_connectionState != ConnectionState.Connected)
+                if (_command.User is not IGuildUser user)
                 {
-                    await Respond("connecting-failed");
+                    throw new Exception("[ERROR]: SocketSlashCommand.User was null in MusicService.cs : Play()");
                 }
-            }
 
-            // Since bot is already connected, we can manually move to ClientConnected() method
-            await ClientConnected();
-        }
+                // Get users channel
+                _channel = user.VoiceChannel;
 
-        private async Task ClientConnected()
-        {
-            // Extract url from slashcommands first parameter
-            string? url = _command!.Data.Options.First().Value.ToString();
-
-            if (!String.IsNullOrEmpty(url))
-            {
-                // Add parameter to display queue for user feedback
-                _displayQueue.Add(url);
-
-                // Respond to slashcommand with the requested url and other basic information
-                await Respond("connected");
-
-                // Extract audio url from link and add it to audio queue
-                string audioUrl = _ytDlp.GetAudioUrlFromLink(url);
-
-                if (String.IsNullOrEmpty(audioUrl))
+                if (_channel != null)
                 {
+                    // Skip connecting if we have an active audio client and user is in a channel
+                    if (_audioClient != null && _audioClient.ConnectionState == ConnectionState.Connected)
+                    {
+                        await AppendURIsToQueueAsync();
+
+                        return;
+                    }
+                    else if (_audioClient == null || _audioClient.ConnectionState == ConnectionState.Disconnected)
+                    {
+                        _audioClient = await _channel.ConnectAsync(true, false, false, false);
+                        _audioClient.StreamDestroyed += StreamDestroyedAsync;
+
+                        // Check if we were able to connect
+                        if (_audioClient.ConnectionState == ConnectionState.Disconnected)
+                        {
+                            await Respond("connecting-failed");
+
+                            return;
+                        }
+
+                        await AppendURIsToQueueAsync();
+                    }
+                    else if (_channel.UserLimit <= _channel.GetUsersAsync().CountAsync().Result)
+                    {
+                        // Respond & inform user that there are too many users in the channel
+                        await Respond("channel-full");
+
+                        return;
+                    }
+                }
+                else
+                {
+                    // Respond & inform user to connect to a voice chat before requesting play
+                    await Respond("channel-not-found");
+
                     return;
                 }
 
-                _audioQueue.Add(audioUrl);
             }
-            else
+            catch (Exception ex)
+            {
+                string message = ex.Message ?? "[ERROR]: Something went wrong in MusicService : Play()";
+
+                Console.WriteLine(message);
+
+                return;
+            }
+        }
+
+        private async Task AppendURIsToQueueAsync()
+        {
+            // Extract slash commands first parameter and add it to url queue
+            if (_command is not SocketSlashCommand command || command.Data.Options.First().Value.ToString() is not string url)
             {
                 return;
             }
 
-            // Start streaming audio
-            using (var ffmpegStream = _ffmpeg.GetAudioStreamFromUrl(_audioQueue.First()))
-            using (var outStream = _audioClient.CreatePCMStream(AudioApplication.Music))
+            _videoUrlQueue.Add(url);
+
+            // Respond to slashcommand with the requested url and other basic information
+            await Respond("connected-succesfully");
+
+            // Extract audio uri from the link, pre-create it and add it to the list
+            string audioUrl = _ytDlp.GetAudioUrlFromLink(url);
+
+            if (String.IsNullOrEmpty(audioUrl))
             {
-                try 
-                {
-                    byte[] buffer = new byte[3840];
-                    int bytesRead;
+                await Respond("couldnt-extract-audio-url");
 
-                    while ((bytesRead = await ffmpegStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                    {
-                        await outStream.WriteAsync(buffer, 0, bytesRead);
-                    }
-                }
-                catch
-                {
-
-                }
-                finally 
-                { 
-                    await outStream.FlushAsync();
-                    ffmpegStream.Dispose();
-
-                }
+                return;
             }
+
+            _audioUrlQueue.Add(audioUrl);
+
+            // Prevent the streaming of multiple URI's at once
+            if (_audioUrlQueue.Count <= 1 && _audioClient is IAudioClient audioClient)
+            {
+                _firstSong = true;
+
+                await StreamAudio(audioClient);
+            }
+
         }
 
-        private Task ClientDisconnected(ulong channelId)
+        private async Task StreamAudio(IAudioClient audioClient)
         {
-            // Clear queue and set connectionstate to disconnected
-            _audioQueue.Clear();
+            // Allow first songs some buffertime to prevent cutouts
+            int bufferMillis = _firstSong ? 1000 : 500;
 
-            _connectionState = ConnectionState.Disconnected;
-
-            // Dispose audio client
-            if (_audioClient != null)
+            while (_audioUrlQueue.Count > 0)
             {
-                _audioClient.Dispose();
+                using (var ffmpegStream = _ffmpeg.GetAudioStreamFromUrl(_audioUrlQueue[0]))
+                using (var outStream = audioClient.CreatePCMStream(AudioApplication.Music, bufferMillis: bufferMillis))
+                {
+                    try
+                    {
+                        _firstSong = false;
+
+                        // Write to outStream in pieces rather than all at once
+                        byte[] buffer = new byte[2048];
+                        int bytesRead;
+
+                        while ((bytesRead = await ffmpegStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            await outStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+                        }
+                    }
+                    catch
+                    {
+                        throw new Exception("[ERROR]: Exception thrown while streaming music in MusicService : ClientConnected()");
+                    }
+                    finally
+                    {
+                        // Flush the audio stream 
+                        await outStream.FlushAsync();
+
+                        // Dispose the stream to create a new one
+                        //ffmpegStream.Dispose();
+
+                        // Remove the song we just played from the queue
+                        _audioUrlQueue.RemoveAt(0);
+                    }
+
+                }
             }
 
-            return Task.CompletedTask;
+            return;
         }
 
         private async Task Respond(string type)
         {
+            if (_command is not SocketSlashCommand command)
+            {
+                return;
+            }
+
             string message = "";
 
             switch (type)
             {
                 case "connecting-failed":
-                    if (_command != null)
-                    {
-                        message = $"{_command.User.Mention} try joining a voice channel before requesting /play -_-";
-                    }
+                    message = $"{command.User.Mention} try joining a voice channel before requesting /play -_-";
+
                     break;
-                case "connected":
-                    message = $"Now playing {_displayQueue.FirstOrDefault()}";
+                case "connected-succesfully":
+                    if (_firstSong) message = $"Now playing {_command.Data.Options.First().Value.ToString()}";
+                    else message = $"Added to queue {_command.Data.Options.First().Value.ToString()}";
+
+                    break;
+                case "channel-not-found":
+                    message = $"Join a voice channel before requesting /play";
+
+                    break;
+                case "channel-full":
+                    message = $"{_command.User.Mention} Voice channel at maximum capacity";
+
+                    break;
+                case "couldnt-extract-audio-url":
+                    message = $"Couldn't extract audio url from provided link";
+
                     break;
             }
 
-            if (_command != null)
-            {
-                await _command.RespondAsync(message);
-            }
+            await command.RespondAsync(message);
 
             return;
+        }
+
+        private Task StreamDestroyedAsync(ulong esfse)
+        {
+            // Set firstSong back to true
+            _firstSong = true;
+
+            // Clear all queues
+            _videoUrlQueue.Clear();
+            _audioUrlQueue.Clear();
+
+            // Dispose IAudioClient
+            if (_audioClient is IAudioClient audioClient)
+            {
+                audioClient.Dispose();
+            }
+
+            return Task.CompletedTask;
         }
 
 

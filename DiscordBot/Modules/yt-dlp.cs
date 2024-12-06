@@ -17,8 +17,10 @@ namespace DiscordBot.Modules
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "yt-dlp",
-                    Arguments = $"--quiet -f bestaudio -g \"{link}\"",
-                    //Arguments = $"--quiet --no-warnings -f bestaudio -g \"{url}\"",
+                    Arguments = $"--quiet " +
+                                $"--no-warnings " +
+                                $"-f bestaudio[ext=m4a] " +
+                                $"-g \"{link}\"",
                     RedirectStandardOutput = true,
                     UseShellExecute = false,
                     CreateNoWindow = true,

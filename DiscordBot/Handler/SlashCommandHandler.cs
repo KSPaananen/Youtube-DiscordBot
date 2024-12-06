@@ -50,7 +50,7 @@ namespace DiscordBot.Handler
 
             globalPlayCommand.WithName("play");
             globalPlayCommand.WithDescription("Play music in a voicechat. For example: /play ");
-            globalPlayCommand.AddOption("link", ApplicationCommandOptionType.String, "The user who requested resource.");
+            globalPlayCommand.AddOption("link", ApplicationCommandOptionType.String, "A link to the song.", true);
             globalAppCommandsList.Add(globalPlayCommand.Build());
 
             // List music queue command
