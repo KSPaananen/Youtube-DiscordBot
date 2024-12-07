@@ -11,5 +11,7 @@
         string GetPublicKey();
 
         string GetBotToken();
+
+        string GetDiscordLink();
     }
 }

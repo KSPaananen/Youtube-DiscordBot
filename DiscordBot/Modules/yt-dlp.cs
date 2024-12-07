@@ -1,6 +1,8 @@
-﻿using DiscordBot.Modules.Interfaces;
+﻿using DiscordBot.Models;
+using DiscordBot.Modules.Interfaces;
 using System.Diagnostics;
 using System.Reflection;
+using System.Text.Json;
 
 namespace DiscordBot.Modules
 {
@@ -11,7 +13,7 @@ namespace DiscordBot.Modules
 
         }
 
-        public string GetAudioUrlFromQuery(string query)
+        public Song GetSongFromQuery(string query)
         {
             try
             {
@@ -28,14 +30,12 @@ namespace DiscordBot.Modules
                 {
                     args = $"--quiet " +
                            $"--no-warnings " +
+                           $"--dump-json " +
                            $"--skip-download " +
-                           $"--get-url " +
                            $"-f bestaudio[ext=m4a] " +
                            $"\"ytsearch:{query}\"";
                 }
 
-                // Additional possibly beneficial arguments
-                // --dump-json => Get all information about found video
                 var process = new Process
                 {
                     StartInfo = new ProcessStartInfo
@@ -50,9 +50,23 @@ namespace DiscordBot.Modules
 
                 process.Start();
 
-                string url = process.StandardOutput.ReadToEnd().Trim();
+                using (JsonDocument document = JsonDocument.Parse(process.StandardOutput.ReadToEnd().Trim()))
+                {
+                    JsonElement root = document.RootElement;
 
-                return url;
+                    Song song = new Song
+                    {
+                        Title = root.GetProperty("title").GetString() ?? "",
+                        VideoUrl = root.GetProperty("original_url").GetString() ?? "",
+                        AudioUrl = root.GetProperty("url").GetString() ?? "",
+                        ThumbnailUrl = root.GetProperty("thumbnail").GetString() ?? "",
+                        Duration = TimeSpan.Parse(root.GetProperty("duration_string").GetString() ?? ""),
+                        Requester = null
+                    };
+
+                    return song;
+                }
+
             }
             catch
             {

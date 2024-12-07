@@ -53,7 +53,7 @@ namespace DiscordBot.Services
             // Create a new client
             _client = new DiscordSocketClient(socketConfig);
 
-            _client.SlashCommandExecuted += _slashCommandHandler.HandleSlashCommandAsync;
+            _client.SlashCommandExecuted += _slashCommandHandler.HandleSlashCommand;
 
             _client.ReactionAdded += _reactionHandler.HandleReactionAddedAsync;
             _client.ReactionRemoved += _reactionHandler.HandleReactionRemovedAsync;
@@ -79,11 +79,11 @@ namespace DiscordBot.Services
         {
             if (log.Exception != null && log.Exception.Message != "")
             {
-                Console.WriteLine($"> {log.Exception.Message}");
+                Console.WriteLine($"> [ERROR]: {log.Exception.Message}");
             }
             else if (log.Message != null && log.Message != "")
             {
-                Console.WriteLine($"> [Error]: {log.Message}");
+                Console.WriteLine($"> {log.Message}");
             }
 
             return Task.CompletedTask;

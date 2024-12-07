@@ -1,4 +1,5 @@
-﻿using System;
+﻿using DiscordBot.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +9,7 @@ namespace DiscordBot.Modules.Interfaces
 {
     public interface IYtDlp
     {
-        string GetAudioUrlFromQuery(string link);
+        Song GetSongFromQuery(string link);
 
     }
 }

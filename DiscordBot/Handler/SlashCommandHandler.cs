@@ -1,41 +1,52 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using DiscordBot.Handler.Interfaces;
+using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
+using System.Reflection;
+using System.Threading.Channels;
 
 namespace DiscordBot.Handler
 {
     public class SlashCommandHandler : ISlashCommandHandler
     {
+        private IConfigurationRepository _configurationRepository;
         private IMusicService _musicService;
 
-        private SocketSlashCommand? _command;
-
-        public SlashCommandHandler(IMusicService musicService)
+        public SlashCommandHandler(IConfigurationRepository configurationRepository, IMusicService musicService)
         {
+            _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(configurationRepository));
             _musicService = musicService ?? throw new NullReferenceException(nameof(musicService));
         }
 
-        public Task HandleSlashCommandAsync(SocketSlashCommand command)
+        public Task HandleSlashCommand(SocketSlashCommand command)
         {
             if (command == null || command.CommandName == "" || command.User.IsBot)
             {
                 return Task.CompletedTask;
             }
 
-            _command = command;
-
             // Run inside a task to avoid "handler is blocking the gateway task" errors
             _ = Task.Run(async () =>
             {
-                switch (command.CommandName)
+                try
                 {
-                    case "play":
-                        await _musicService.Play(command);
+                    switch (command.CommandName)
+                    {
+                        case "play":
+                            await _musicService.Play(command);
 
-                        break;
+                            break;
+                    }
                 }
+                catch (Exception ex)
+                {
+                    // Provide feedback to the channel where exception occured
+                    await SendMessageToChannelAsync(command);
 
+                    // Print ex.message to channel
+                    Console.WriteLine(ex.Message ?? $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                }
             });
 
             return Task.CompletedTask;
@@ -75,6 +86,34 @@ namespace DiscordBot.Handler
 
             // Write all global command from list
             await client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray(), requestOptions);
+
+            return;
+        }
+
+        private async Task SendMessageToChannelAsync(SocketSlashCommand command)
+        {
+            if (command == null)
+            {
+                return;
+            }
+
+            EmbedBuilder builder = new EmbedBuilder();
+            builder.Color = new Color(1f, 0.984f, 0f);
+            builder.Title = "Something went wrong :(";
+            builder.Description = $"Please submit a bug report at the developers discord server";
+            builder.Fields = new List<EmbedFieldBuilder>
+            {
+                new EmbedFieldBuilder
+                {
+                    Name = "Discord server" ,
+                    Value = _configurationRepository.GetDiscordLink(),
+                    IsInline = true
+                }
+            };
+
+            Embed[] embedArray = [builder.Build()];
+
+            await command.RespondAsync(embeds: embedArray, ephemeral: true);
 
             return;
         }
