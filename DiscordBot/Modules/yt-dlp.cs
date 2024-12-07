@@ -1,5 +1,6 @@
 ﻿using DiscordBot.Modules.Interfaces;
 using System.Diagnostics;
+using System.Reflection;
 
 namespace DiscordBot.Modules
 {
@@ -10,28 +11,53 @@ namespace DiscordBot.Modules
 
         }
 
-        public string GetAudioUrlFromLink(string link)
+        public string GetAudioUrlFromQuery(string query)
         {
-            var process = new Process
+            try
             {
-                StartInfo = new ProcessStartInfo
+                string args = $"";
+
+                if (query.Contains("https://") && (query.Contains("youtube.com") || query.Contains("youtu.be")))
                 {
-                    FileName = "yt-dlp",
-                    Arguments = $"--quiet " +
-                                $"--no-warnings " +
-                                $"-f bestaudio[ext=m4a] " +
-                                $"-g \"{link}\"",
-                    RedirectStandardOutput = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
+                    args = $"--quiet " +
+                           $"--no-warnings " +
+                           $"-f bestaudio[ext=m4a] " +
+                           $"-g \"{query}\"";
                 }
-            };
+                else
+                {
+                    args = $"--quiet " +
+                           $"--no-warnings " +
+                           $"--skip-download " +
+                           $"--get-url " +
+                           $"-f bestaudio[ext=m4a] " +
+                           $"\"ytsearch:{query}\"";
+                }
 
-            process.Start();
+                // Additional possibly beneficial arguments
+                // --dump-json => Get all information about found video
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "yt-dlp",
+                        Arguments = args,
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                    }
+                };
 
-            string audioUrl = process.StandardOutput.ReadToEnd().Trim();
+                process.Start();
 
-            return audioUrl;
+                string url = process.StandardOutput.ReadToEnd().Trim();
+
+                return url;
+            }
+            catch
+            {
+                throw new Exception($"[ERROR]: Invalid query in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            }
         }
 
 

@@ -8,7 +8,7 @@ namespace DiscordBot.Modules.Interfaces
 {
     public interface IYtDlp
     {
-        string GetAudioUrlFromLink(string link);
+        string GetAudioUrlFromQuery(string link);
 
     }
 }
