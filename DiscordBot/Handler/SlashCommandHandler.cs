@@ -32,6 +32,7 @@ namespace DiscordBot.Handler
                 {
                     case "play":
                         await _musicService.Play(command);
+
                         break;
                 }
 

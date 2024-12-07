@@ -27,6 +27,8 @@ namespace DiscordBot.Services
 
             _videoUrlQueue = new List<string>();
             _audioUrlQueue = new List<string>();
+
+            _firstSong = true;
         }
 
         public async Task Play(SocketSlashCommand command)
@@ -40,7 +42,6 @@ namespace DiscordBot.Services
                     throw new Exception("[ERROR]: SocketSlashCommand.User was null in MusicService.cs : Play()");
                 }
 
-                // Get users channel
                 _channel = user.VoiceChannel;
 
                 if (_channel != null)
@@ -122,8 +123,6 @@ namespace DiscordBot.Services
             // Prevent the streaming of multiple URI's at once
             if (_audioUrlQueue.Count <= 1 && _audioClient is IAudioClient audioClient)
             {
-                _firstSong = true;
-
                 await StreamAudio(audioClient);
             }
 

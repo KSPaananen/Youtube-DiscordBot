@@ -113,6 +113,7 @@ namespace DiscordBot.Services
                     break;
                 case LoginState.LoggedOut:
                     Console.WriteLine($"> Error logging in. Check that the tokens and keys are correct");
+
                     break;
             }
 
@@ -135,6 +136,7 @@ namespace DiscordBot.Services
             string botToken = _configurationRepository.GetBotToken();
 
             Console.WriteLine($"> Logging in...");
+
             await _client.LoginAsync(TokenType.Bot, botToken, true);
             await _client.StartAsync();
         }
