@@ -23,15 +23,15 @@ namespace DiscordBot.Modules
                 {
                     args = $"--quiet " +
                            $"--no-warnings " +
+                           $"--dump-json " +
                            $"-f bestaudio[ext=m4a] " +
-                           $"-g \"{query}\"";
+                           $"\"{query}\"";
                 }
                 else
                 {
                     args = $"--quiet " +
                            $"--no-warnings " +
                            $"--dump-json " +
-                           $"--skip-download " +
                            $"-f bestaudio[ext=m4a] " +
                            $"\"ytsearch:{query}\"";
                 }
@@ -61,7 +61,7 @@ namespace DiscordBot.Modules
                         AudioUrl = root.GetProperty("url").GetString() ?? "",
                         ThumbnailUrl = root.GetProperty("thumbnail").GetString() ?? "",
                         Duration = TimeSpan.Parse(root.GetProperty("duration_string").GetString() ?? ""),
-                        Requester = null
+                        Requester = null,
                     };
 
                     return song;

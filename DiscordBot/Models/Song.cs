@@ -16,6 +16,5 @@ namespace DiscordBot.Models
 
         public required SocketUser Requester { get; set; }
 
-
     }
 }

@@ -1,4 +1,5 @@
-﻿using DiscordBot.Modules.Interfaces;
+﻿using DiscordBot.Models;
+using DiscordBot.Modules.Interfaces;
 using System.Diagnostics;
 
 namespace DiscordBot.Modules
@@ -12,19 +13,29 @@ namespace DiscordBot.Modules
 
         public Stream GetAudioStreamFromUrl(string url)
         {
-            // Keep RedirectStandardOutput & RedirectStandardError set as 'true' or it will not work
             var process = new Process
             {
                 // Additional possibly beneficial arguments
-                // -re : Runs stream at realtime
-                // -hide_banner -loglever error : Quiets log output
+                // -loglever error : Quiets log output
+                // -re : Realtime streaming
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "ffmpeg",
-                    Arguments = $"-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36\" " +
-                                $"-re " +
+                    Arguments = $"-headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0\\r\\n\" " +
+                                $"-headers \"Connection: keep-alive\\r\\n\" " +
+                                $"-protocol_whitelist file,http,https,tls,tcp " +
+                                $"-fflags +nobuffer " +
+                                $"-flags low_delay " +
+                                $"-reconnect 1 " +
+                                $"-reconnect_at_eof 1 " +
+                                $"-reconnect_streamed 1 " +
+                                $"-reconnect_delay_max 3 " +
+                                $"-rw_timeout 5000000 " +
+                                $"-timeout 1000000 " +
+                                $"-max_interleave_delta 0 " +
+                                $"-hide_banner " +
                                 $"-i \"{url}\" " +
-                                $"-ac 2 " +
+                                $"-ac 2 " + 
                                 $"-ar 48000 " +
                                 $"-f s16le pipe:1",
                     RedirectStandardOutput = true,

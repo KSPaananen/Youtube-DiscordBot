@@ -24,7 +24,6 @@ namespace DiscordBot.Services
         private List<Song> _songList;
 
         private bool _firstSong;
-        private bool _deferred;
 
         public MusicService(IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
@@ -40,15 +39,13 @@ namespace DiscordBot.Services
 
         // ToDo
         // - Buttons for embeds
-        // Better error logic
+        // - Better error logic
+        // - Fix playback
 
         public async Task Play(SocketSlashCommand command)
         {
             try
             {
-                // Set deferred back to false since its a new command
-                _deferred = false;
-
                 _command = command;
 
                 if (command.User is not IGuildUser user)
@@ -105,7 +102,6 @@ namespace DiscordBot.Services
                 // Reset "global" variables
                 _songList.Clear();
                 _firstSong = true;
-                _deferred = false;
 
                 Console.WriteLine(ex.Message ?? $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
@@ -122,7 +118,6 @@ namespace DiscordBot.Services
 
             // After connecting to a voice channel, inform discord that we acknowledge the slash command
             await _command.DeferAsync();
-            _deferred = true;
 
             // Extract audio uri from the link, pre-create it and add it to the list
             var song = _ytDlp.GetSongFromQuery(query);
@@ -148,22 +143,19 @@ namespace DiscordBot.Services
 
         private async Task StreamAudio(IAudioClient audioClient)
         {
-            // Allow first songs some buffertime to prevent cutouts
-            int bufferMillis = _firstSong ? 1000 : 500;
-
             while (_songList.Count > 0)
             {
                 await ConstructResponses("now-playing");
 
-                using (var ffmpegStream = _ffmpeg.GetAudioStreamFromUrl(_songList[0].AudioUrl))
-                using (var outStream = audioClient.CreatePCMStream(AudioApplication.Music, bufferMillis: bufferMillis))
+                using (var ffmpegStream = _ffmpeg.GetAudioStreamFromUrl(_songList[0]))
+                using (var outStream = audioClient.CreatePCMStream(AudioApplication.Music, bufferMillis: 1000))
                 {
                     try
                     {
                         _firstSong = false;
 
                         // Write to outStream in pieces rather than all at once
-                        byte[] buffer = new byte[4096];
+                        byte[] buffer = new byte[8192];
                         int bytesRead;
 
                         while ((bytesRead = await ffmpegStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
@@ -353,7 +345,6 @@ namespace DiscordBot.Services
         private Task StreamDestroyedAsync(ulong streamId)
         {
             _firstSong = true;
-            _deferred = false;
 
             // Clear lists
             _songList.Clear();

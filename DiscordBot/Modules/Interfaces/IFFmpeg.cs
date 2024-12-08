@@ -1,4 +1,6 @@
-﻿namespace DiscordBot.Modules.Interfaces
+﻿using DiscordBot.Models;
+
+namespace DiscordBot.Modules.Interfaces
 {
     public interface IFFmpeg
     {
