@@ -55,7 +55,6 @@ builder.Services.AddTransient<IConfigurationRepository, ConfigurationRepository>
 // Services
 builder.Services.AddHostedService<DiscordClientService>(); // Add as a HostedService to run methods on app start
 builder.Services.AddTransient<IMusicService, MusicService>();
-builder.Services.AddTransient<IMessageService, MessageService>();
 
 // Handlers
 builder.Services.AddTransient<ISlashCommandHandler, SlashCommandHandler>();

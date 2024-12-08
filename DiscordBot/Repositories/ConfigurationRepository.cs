@@ -40,7 +40,7 @@ namespace DiscordBot.Repositories
 
         public string GetDiscordLink()
         {
-            return _config.GetSection("discord:link").Value ?? throw new NullReferenceException();
+            return _config.GetSection("discord:link").Value ?? "";
         }
 
     }

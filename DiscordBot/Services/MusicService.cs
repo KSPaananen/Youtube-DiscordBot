@@ -1,8 +1,10 @@
 ﻿using Discord;
 using Discord.Audio;
 using Discord.WebSocket;
+using DiscordBot.Extensions;
 using DiscordBot.Models;
 using DiscordBot.Modules.Interfaces;
+using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Reflection;
 
@@ -10,6 +12,8 @@ namespace DiscordBot.Services
 {
     public class MusicService : IMusicService
     {
+        private IConfigurationRepository _configurationRepository;
+
         private IYtDlp _ytDlp;
         private IFFmpeg _ffmpeg;
 
@@ -20,9 +24,12 @@ namespace DiscordBot.Services
         private List<Song> _songList;
 
         private bool _firstSong;
+        private bool _deferred;
 
-        public MusicService(IYtDlp ytDlp, IFFmpeg ffmpeg)
+        public MusicService(IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
+            _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(configurationRepository));
+
             _ytDlp = ytDlp ?? throw new NullReferenceException(nameof(ytDlp));
             _ffmpeg = ffmpeg ?? throw new NullReferenceException(nameof(ffmpeg));
 
@@ -33,11 +40,15 @@ namespace DiscordBot.Services
 
         // ToDo
         // - Buttons for embeds
+        // Better error logic
 
         public async Task Play(SocketSlashCommand command)
         {
             try
             {
+                // Set deferred back to false since its a new command
+                _deferred = false;
+
                 _command = command;
 
                 if (command.User is not IGuildUser user)
@@ -56,7 +67,8 @@ namespace DiscordBot.Services
 
                     if (_channel.UserLimit <= _channel.GetUsersAsync().CountAsync().Result)
                     {
-                        await ProvideFeedbackAsync("channel-full");
+                        // Use Ephemeral response so other users don't see the issue
+                        await ConstructResponses("channel-full");
 
                         return;
                     }
@@ -82,8 +94,8 @@ namespace DiscordBot.Services
                 }
                 else
                 {
-                    // Respond & inform user to connect to a voice chat before requesting play
-                    await ProvideFeedbackAsync("channel-not-found");
+                    // Inform user with an ephemeral response that they should be in a voice channel before requesting /play
+                    await ConstructResponses("channel-not-found");
 
                     return;
                 }
@@ -93,9 +105,9 @@ namespace DiscordBot.Services
                 // Reset "global" variables
                 _songList.Clear();
                 _firstSong = true;
+                _deferred = false;
 
-                // Throw an exception and let SlashCommandHandler layer handle it
-                throw new Exception(ex.Message);
+                Console.WriteLine(ex.Message ?? $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
         }
@@ -110,6 +122,7 @@ namespace DiscordBot.Services
 
             // After connecting to a voice channel, inform discord that we acknowledge the slash command
             await _command.DeferAsync();
+            _deferred = true;
 
             // Extract audio uri from the link, pre-create it and add it to the list
             var song = _ytDlp.GetSongFromQuery(query);
@@ -123,7 +136,7 @@ namespace DiscordBot.Services
             _songList.Add(song);
 
             // Provide response to the slash command
-            await ProvideFeedbackAsync("user-requested");
+            await ConstructResponses("user-requested");
 
             // Prevent the streaming of multiple URI's at once
             if (_songList.Count <= 1 && _audioClient is IAudioClient audioClient)
@@ -140,8 +153,7 @@ namespace DiscordBot.Services
 
             while (_songList.Count > 0)
             {
-                // Send a message to channel unless we're playing the first song, then it should be a response
-                await ProvideFeedbackAsync("now-playing");
+                await ConstructResponses("now-playing");
 
                 using (var ffmpegStream = _ffmpeg.GetAudioStreamFromUrl(_songList[0].AudioUrl))
                 using (var outStream = audioClient.CreatePCMStream(AudioApplication.Music, bufferMillis: bufferMillis))
@@ -165,14 +177,14 @@ namespace DiscordBot.Services
                     }
                     finally
                     {
+                        // Remove the song we just played from the song list
+                        _songList.RemoveAt(0);
+
                         // Flush the audio stream 
                         await outStream.FlushAsync();
 
                         // Dispose the stream to create a new one
                         ffmpegStream.Dispose();
-
-                        // Remove the song we just played from the queue
-                        _songList.RemoveAt(0);
                     }
 
                 }
@@ -181,67 +193,66 @@ namespace DiscordBot.Services
             return;
         }
 
-        private async Task ProvideFeedbackAsync(string type)
+        private async Task ConstructResponses(string type)
         {
-            if (_command == null)
+            if (_command is not SocketSlashCommand command)
             {
-                throw new Exception();
+                return;
             }
 
-            int listIndex = _songList.Count - 1;
-
-            EmbedBuilder builder = new EmbedBuilder();
-            builder.Color = new Color(1f, 0.984f, 0f);
+            var builder = new EmbedBuilder();
 
             switch (type)
             {
-                case "channel-full":
-                    builder.Title = "Voice channel full";
-                    builder.Description = "Unable to join due to voice channel being at max capacity";
-
-                    await _command.RespondAsync(embeds: [builder.Build()], ephemeral: true);
-
-                    break;
-                case "channel-not-found":
-                    builder.Title = "Couldn't connect to a voice channel";
-                    builder.Description = "User must be in a voice channel before requesting /play";
-
-                    await _command.RespondAsync(embeds: [builder.Build()], ephemeral: true);
-
-                    break;
                 case "user-requested":
+                    // Don't inform about the first song being added to queue
+                    if (_firstSong)
+                    {
+                        return;
+                    }
+
                     builder.Author = new EmbedAuthorBuilder
                     {
                         IconUrl = "",
                         Name = $"Added a new song to the queue",
                         Url = ""
                     };
-                    builder.Title = _songList[listIndex].Title;
-                    builder.Url = _songList[listIndex].VideoUrl;
-                    builder.Fields = new List<EmbedFieldBuilder>();
-                    builder.ThumbnailUrl = _songList[listIndex].ThumbnailUrl;
-                    builder.Timestamp = new DateTimeOffset(DateTime.Now);
-                    builder.Footer = new EmbedFooterBuilder
-                    {
-                        IconUrl = _songList[0].Requester.GetAvatarUrl(),
-                        Text = _songList[0].Requester.GlobalName
-                    };
+                    builder.Title = _songList[_songList.Count - 1].Title;
+                    builder.Url = _songList[_songList.Count - 1].VideoUrl;
+                    builder.ThumbnailUrl = _songList[_songList.Count - 1].ThumbnailUrl;
+                    builder.WithDefaults(new EmbedFooterBuilder { Text = _command.User.GlobalName, IconUrl = _command.User.GetAvatarUrl() });
 
-                    if (!_firstSong)
+                    if (_songList.Count > 2)
                     {
-                        await _command.ModifyOriginalResponseAsync(msg =>
+                        if (builder.Fields == null || builder.Fields.Count <= 0)
                         {
-                            msg.Embeds = new[] { builder.Build() };
-                        });
+                            builder.Fields = new List<EmbedFieldBuilder>
+                            {
+                                new EmbedFieldBuilder
+                                {
+                                    Name = "Songs in the queue",
+                                    Value = $"- {_songList[1].Title} \n",
+                                }
+                            };
+                        }
+
+                        for (int i = 2; i != _songList.Count; i++)
+                        {
+                            builder.Fields[0].Value += $"- {_songList[i].Title} \n";
+                        }
                     }
 
+                    await command.ModifyOriginalResponseAsync(msg =>
+                    {
+                        msg.Embeds = new[] { builder.Build() };
+                    });
                     break;
                 case "now-playing":
                     builder.Author = new EmbedAuthorBuilder
                     {
-                        IconUrl = "",
+                        IconUrl = null,
                         Name = _channel == null ? "Now playing" : $"Now playing in {_channel.Name}",
-                        Url = ""
+                        Url = null
                     };
                     builder.Title = _songList[0].Title;
                     builder.Url = _songList[0].VideoUrl;
@@ -251,59 +262,98 @@ namespace DiscordBot.Services
                         {
                             Name = "Duration" ,
                             Value = $"{_songList[0].Duration.Hours:D2}:{_songList[0].Duration.Minutes:D2}",
-                            IsInline = true
+                             IsInline = true
                         },
                         new EmbedFieldBuilder
                         {
                             Name = "Songs in queue" ,
-                            Value = $"{listIndex}",
-                            IsInline = true
-                        },
+                            Value = $"{_songList.Count - 1}",
+                                IsInline = true
+                        }
                     };
                     builder.ImageUrl = _songList[0].ThumbnailUrl;
-                    builder.Timestamp = new DateTimeOffset(DateTime.Now);
-                    builder.Footer = new EmbedFooterBuilder
-                    {
-                        IconUrl = _songList[0].Requester.GetAvatarUrl(),
-                        Text = _songList[0].Requester.GlobalName
-                    };
 
-                    // Add a field displaying the next song if we have songs in queue
-                    if (_songList.Count >= 2)
+                    // Add "Next song" field if we have more than 1 song in queue
+                    if (_songList.Count > 1)
                     {
                         builder.Fields.Add(new EmbedFieldBuilder
                         {
                             Name = "Next in queue",
-                            Value = $"{_songList[1].Title ?? ""}",
+                            Value = $"{_songList[1].Title ?? "Title"}",
                             IsInline = false
                         });
-                    }
+                    };
+                    builder.WithDefaults(new EmbedFooterBuilder { Text = _command.User.GlobalName, IconUrl = _command.User.GetAvatarUrl() });
 
-                    if (_firstSong)
+                    if (!_firstSong)
                     {
-                        await _command.ModifyOriginalResponseAsync(msg =>
+                        await command.Channel.SendMessageAsync(embeds: [builder.Build()]);
+                    }
+                    else
+                    {
+                        await command.ModifyOriginalResponseAsync(msg =>
                         {
                             msg.Embeds = new[] { builder.Build() };
                         });
                     }
-                    else
-                    {
-                        await _command.Channel.SendMessageAsync(embeds: [builder.Build()]);
-                    }
-
-                    break;
-                default:
-
                     break;
             }
+
+            // Return if type isn't an error
+            if (type is not ("error" or "channel-not-found" or "channel-full"))
+            {
+                return;
+            }
+
+            string discordLink = _configurationRepository.GetDiscordLink();
+
+            switch (type)
+            {
+                case "error":
+                    builder.Title = $"Something went wrong :(";
+                    builder.Description = $"Something went wrong while executing **/{command.CommandName}**. ";
+                    break;
+                case "channel-not-found":
+                    builder.Title = $"Couldn't connect to a voice channel";
+                    builder.Description = $"You should be connected to a voice channel before requesting **/{command.CommandName}**. ";
+                    break;
+                case "channel-full":
+                    builder.Title = $"Couldn't connect to the voice channel";
+                    builder.Description = $"The voice channel is at maximum capacity. You could kick your least favorite friend to make room.";
+                    break;
+            }
+
+            // Add developer details if its configured in appsettings.json
+            if (!String.IsNullOrEmpty(discordLink))
+            {
+                if (type == "error")
+                {
+                    builder.Description = builder.Description + $"Please fill out a bug report at the developers discord server. ";
+                }
+                else
+                {
+                    builder.Description = builder.Description + $"\n\nIf you believe this is a bug, please fill out a bug report at the developers discord server.";
+                }
+
+                builder.Fields.Add(new EmbedFieldBuilder
+                {
+                    Name = $"Discord server",
+                    Value = discordLink,
+                    IsInline = true
+                });
+            }
+
+            builder.WithDefaults(new EmbedFooterBuilder { Text = _command.User.GlobalName, IconUrl = _command.User.GetAvatarUrl() });
+
+            await command.RespondAsync(embeds: [builder.Build()], ephemeral: true);
 
             return;
         }
 
         private Task StreamDestroyedAsync(ulong streamId)
         {
-            // Set firstSong back to true
             _firstSong = true;
+            _deferred = false;
 
             // Clear lists
             _songList.Clear();

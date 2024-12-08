@@ -7,7 +7,6 @@ using Microsoft.Extensions.Hosting;
 
 namespace DiscordBot.Services
 {
-    // Inherit IHostedService to run methods on app start
     public class DiscordClientService : IDiscordClientService, IHostedService, IDisposable
     {
         private DiscordSocketClient _client;
@@ -88,6 +87,7 @@ namespace DiscordBot.Services
                         $"- Verified: {_client.CurrentUser.IsVerified} \n  " +
                         $"- Mfa: {_client.CurrentUser.IsMfaEnabled} \n  " +
                         $"- Clients: {_client.CurrentUser.ActiveClients.Count} \n  " +
+                        $"- Guilds: {_client.Guilds.Count} \n  " +
                         $"- Created: {(_client.CurrentUser.CreatedAt.UtcDateTime).ToString().Substring(0, (_client.CurrentUser.CreatedAt.UtcDateTime).ToString().IndexOf(" "))} ");
 
                     break;
@@ -102,7 +102,7 @@ namespace DiscordBot.Services
             // Create new slash commands on app start
             _slashCommandHandler.CreateSlashCommandsAsync(_client);
 
-            Console.WriteLine($"> Application ready");
+            Console.WriteLine($"> Application ready \n");
 
             return Task.CompletedTask;
         }

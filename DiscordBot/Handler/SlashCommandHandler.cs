@@ -10,11 +10,13 @@ namespace DiscordBot.Handler
     public class SlashCommandHandler : ISlashCommandHandler
     {
         private IConfigurationRepository _configurationRepository;
+
         private IMusicService _musicService;
 
         public SlashCommandHandler(IConfigurationRepository configurationRepository, IMusicService musicService)
         {
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(configurationRepository));
+
             _musicService = musicService ?? throw new NullReferenceException(nameof(musicService));
         }
 
@@ -40,9 +42,6 @@ namespace DiscordBot.Handler
                 }
                 catch (Exception ex)
                 {
-                    // Provide feedback to the channel where exception occured
-                    await SendMessageToChannelAsync(command);
-
                     // Print ex.message to channel
                     Console.WriteLine(ex.Message ?? $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
@@ -85,34 +84,6 @@ namespace DiscordBot.Handler
 
             // Write all global command from list
             await client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray(), requestOptions);
-
-            return;
-        }
-
-        private async Task SendMessageToChannelAsync(SocketSlashCommand command)
-        {
-            if (command == null)
-            {
-                return;
-            }
-
-            EmbedBuilder builder = new EmbedBuilder();
-            builder.Color = new Color(1f, 0.984f, 0f);
-            builder.Title = "Something went wrong :(";
-            builder.Description = $"Please submit a bug report at the developers discord server";
-            builder.Fields = new List<EmbedFieldBuilder>
-            {
-                new EmbedFieldBuilder
-                {
-                    Name = "Discord server" ,
-                    Value = _configurationRepository.GetDiscordLink(),
-                    IsInline = true
-                }
-            };
-
-            Embed[] embedArray = [builder.Build()];
-
-            await command.RespondAsync(embeds: embedArray, ephemeral: true);
 
             return;
         }
