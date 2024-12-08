@@ -10,6 +10,8 @@ namespace DiscordBot.Services
     // Inherit IHostedService to run methods on app start
     public class DiscordClientService : IDiscordClientService, IHostedService, IDisposable
     {
+        private DiscordSocketClient _client;
+
         private IConfigurationRepository _configurationRepository;
 
         private ISlashCommandHandler _slashCommandHandler;
@@ -19,11 +21,11 @@ namespace DiscordBot.Services
         private IMessageHandler _messageHandler;
         private IGuildHandler _guildHandler;
 
-        private DiscordSocketClient _client;
-
-        public DiscordClientService(IConfigurationRepository configurationRepository, ISlashCommandHandler slashCommandHandler, IReactionHandler reactionHandler,
-            IUserHandler userHandler, IButtonHandler buttonHandler, IMessageHandler messageHandler, IGuildHandler guildHandler)
+        public DiscordClientService(DiscordSocketClient client, IConfigurationRepository configurationRepository, ISlashCommandHandler slashCommandHandler,
+             IReactionHandler reactionHandler, IUserHandler userHandler, IButtonHandler buttonHandler, IMessageHandler messageHandler, IGuildHandler guildHandler)
         {
+            _client = client ?? throw new NullReferenceException(nameof(client));
+
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(IConfigurationRepository));
 
             _slashCommandHandler = slashCommandHandler ?? throw new NullReferenceException(nameof(slashCommandHandler));
@@ -33,28 +35,7 @@ namespace DiscordBot.Services
             _messageHandler = messageHandler ?? throw new NullReferenceException(nameof(messageHandler));
             _guildHandler = guildHandler ?? throw new NullReferenceException(nameof(guildHandler));
 
-            var socketConfig = new DiscordSocketConfig
-            {
-                // Enabled all unprivileged intents except:
-                // - GuildScheduledEvents
-                // - GuildInvites
-                GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildBans | GatewayIntents.GuildEmojis | GatewayIntents.GuildIntegrations |
-                    GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions |
-                    GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping |
-                    GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls |
-                    GatewayIntents.DirectMessagePolls,
-                MessageCacheSize = 10,
-                AlwaysDownloadDefaultStickers = true,
-                AlwaysResolveStickers = true,
-                AlwaysDownloadUsers = false,
-                AuditLogCacheSize = 10,
-                LogLevel = LogSeverity.Warning
-
-            };
-
-            // Create a new client
-            _client = new DiscordSocketClient(socketConfig);
-
+            // Attach methods to clients events
             _client.SlashCommandExecuted += _slashCommandHandler.HandleSlashCommand;
 
             _client.ReactionAdded += _reactionHandler.HandleReactionAddedAsync;
@@ -91,11 +72,6 @@ namespace DiscordBot.Services
             }
 
             return Task.CompletedTask;
-        }
-
-        public DiscordSocketClient GetClient()
-        {
-            return _client;
         }
 
         private Task ClientReady()

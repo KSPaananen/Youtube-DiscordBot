@@ -1,4 +1,6 @@
-﻿using DiscordBot.Handler;
+﻿using Discord;
+using Discord.WebSocket;
+using DiscordBot.Handler;
 using DiscordBot.Handler.Interfaces;
 using DiscordBot.Middleware;
 using DiscordBot.Middleware.Interfaces;
@@ -19,6 +21,32 @@ builder.Services.AddLogging(config =>
 {
     config.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.None);
     config.AddFilter("Microsoft", LogLevel.Warning);
+});
+
+builder.Services.AddSingleton<DiscordSocketClient>(provider =>
+{
+    var socketConfig = new DiscordSocketConfig
+    {
+        // Enabled all unprivileged intents except:
+        // - GuildScheduledEvents
+        // - GuildInvites
+        GatewayIntents = GatewayIntents.Guilds | GatewayIntents.GuildBans | GatewayIntents.GuildEmojis | GatewayIntents.GuildIntegrations |
+                    GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions |
+                    GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping |
+                    GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls |
+                    GatewayIntents.DirectMessagePolls,
+        MessageCacheSize = 10,
+        AlwaysDownloadDefaultStickers = true,
+        AlwaysResolveStickers = true,
+        AlwaysDownloadUsers = false,
+        AuditLogCacheSize = 10,
+        LogLevel = LogSeverity.Warning
+
+    };
+
+    var client = new DiscordSocketClient(socketConfig);
+
+    return client;
 });
 
 // Repositories

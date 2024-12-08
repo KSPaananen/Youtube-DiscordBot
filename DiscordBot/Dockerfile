@@ -2,7 +2,7 @@
 FROM mcr.microsoft.com/dotnet/runtime:8.0 AS base
 WORKDIR /app
 
-# Install dependencies, libopus for Discord voice functionality, FFmpeg for media handling, and Python tools
+# Install dependencies, opus & libsodium for discord voice functionality, FFmpeg for media handling, and Python tools
 USER root
 RUN apt-get update && apt-get install -y \
     libopus-dev \
