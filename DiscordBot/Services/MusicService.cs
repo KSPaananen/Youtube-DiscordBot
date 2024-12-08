@@ -20,7 +20,7 @@ namespace DiscordBot.Services
         private List<Song> _songList;
 
         private bool _firstSong;
-        
+
         public MusicService(IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
             _ytDlp = ytDlp ?? throw new NullReferenceException(nameof(ytDlp));
@@ -33,17 +33,16 @@ namespace DiscordBot.Services
 
         // ToDo
         // - Buttons for embeds
-        // - Clean up logic for ProvideFeedbackAsync
 
         public async Task Play(SocketSlashCommand command)
         {
             try
             {
                 _command = command;
-                
+
                 if (command.User is not IGuildUser user)
                 {
-                    throw new Exception($"[ERROR]: SocketSlashCommand.User was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                    throw new Exception($"> [ERROR]: SocketSlashCommand.User was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
 
                 _channel = user.VoiceChannel;
@@ -74,7 +73,7 @@ namespace DiscordBot.Services
 
                         if (_audioClient == null || _audioClient.ConnectionState == ConnectionState.Disconnected)
                         {
-                            throw new Exception($"[ERROR]: Unable to create IAudioClient with IVoiceChannel.ConnectAsync in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                            throw new Exception($"> [ERROR]: Unable to create IAudioClient with IVoiceChannel.ConnectAsync in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                         }
 
                         await AppendQueryToQueueAsync();
@@ -106,7 +105,7 @@ namespace DiscordBot.Services
             // Extract slash commands first parameter and add it to query list
             if (_command is not SocketSlashCommand command || command.Data.Options.First().Value.ToString() is not string query)
             {
-                throw new Exception($"[ERROR]: SocketSlashCommands first parameter was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                throw new Exception($"> [ERROR]: SocketSlashCommands first parameter was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
             // After connecting to a voice channel, inform discord that we acknowledge the slash command
@@ -117,7 +116,7 @@ namespace DiscordBot.Services
 
             if (String.IsNullOrEmpty(song.AudioUrl))
             {
-                throw new Exception($"[ERROR]: Couldn't fetch an audio url with yt-dlp in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                throw new Exception($"> [ERROR]: Couldn't fetch an audio url with yt-dlp in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
             song.Requester = _command.User;
@@ -162,7 +161,7 @@ namespace DiscordBot.Services
                     }
                     catch
                     {
-                        throw new Exception($"[ERROR]: Exception thrown while streaming music in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                        throw new Exception($"> [ERROR]: Exception thrown while streaming music in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                     }
                     finally
                     {
@@ -198,18 +197,14 @@ namespace DiscordBot.Services
             {
                 case "channel-full":
                     builder.Title = "Voice channel full";
+                    builder.Description = "Unable to join due to voice channel being at max capacity";
 
                     await _command.RespondAsync(embeds: [builder.Build()], ephemeral: true);
+
                     break;
                 case "channel-not-found":
                     builder.Title = "Couldn't connect to a voice channel";
                     builder.Description = "User must be in a voice channel before requesting /play";
-                    builder.Timestamp = new DateTimeOffset(DateTime.Now);
-                    builder.Footer = new EmbedFooterBuilder
-                    {
-                        IconUrl = _command!.User.GetAvatarUrl(),
-                        Text = _command!.User.GlobalName
-                    };
 
                     await _command.RespondAsync(embeds: [builder.Build()], ephemeral: true);
 
@@ -223,7 +218,6 @@ namespace DiscordBot.Services
                     };
                     builder.Title = _songList[listIndex].Title;
                     builder.Url = _songList[listIndex].VideoUrl;
-                    builder.Description = "";
                     builder.Fields = new List<EmbedFieldBuilder>();
                     builder.ThumbnailUrl = _songList[listIndex].ThumbnailUrl;
                     builder.Timestamp = new DateTimeOffset(DateTime.Now);

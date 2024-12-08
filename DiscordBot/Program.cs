@@ -25,7 +25,9 @@ builder.Services.AddLogging(config =>
 builder.Services.AddTransient<IConfigurationRepository, ConfigurationRepository>();
 
 // Services
+builder.Services.AddHostedService<DiscordClientService>(); // Add as a HostedService to run methods on app start
 builder.Services.AddTransient<IMusicService, MusicService>();
+builder.Services.AddTransient<IMessageService, MessageService>();
 
 // Handlers
 builder.Services.AddTransient<ISlashCommandHandler, SlashCommandHandler>();
@@ -33,6 +35,7 @@ builder.Services.AddTransient<IReactionHandler, ReactionHandler>();
 builder.Services.AddTransient<IUserHandler, UserHandler>();
 builder.Services.AddTransient<IButtonHandler, ButtonHandler>();
 builder.Services.AddTransient<IMessageHandler, MessageHandler>();
+builder.Services.AddTransient<IGuildHandler, GuildHandler>();
 
 // Middlewares
 builder.Services.AddSingleton<IErrorHandlerMiddleware, ErrorHandlerMiddleware>();
@@ -40,8 +43,6 @@ builder.Services.AddSingleton<IErrorHandlerMiddleware, ErrorHandlerMiddleware>()
 // Modules
 builder.Services.AddTransient<IYtDlp, YtDlp>();
 builder.Services.AddTransient<IFFmpeg, FFmpeg>();
-
-builder.Services.AddHostedService<DiscordClientService>(); // Add as a HostedService to run methods on app start
 
 var app = builder.Build();
 

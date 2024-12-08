@@ -4,7 +4,6 @@ using DiscordBot.Handler.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Reflection;
-using System.Threading.Channels;
 
 namespace DiscordBot.Handler
 {

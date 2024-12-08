@@ -19,7 +19,7 @@ namespace DiscordBot.Modules
                 // -re : Runs stream at realtime
                 // -hide_banner -loglever error : Quiets log output
                 StartInfo = new ProcessStartInfo
-                {   
+                {
                     FileName = "ffmpeg",
                     Arguments = $"-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36\" " +
                                 $"-re " +
@@ -28,7 +28,7 @@ namespace DiscordBot.Modules
                                 $"-ar 48000 " +
                                 $"-f s16le pipe:1",
                     RedirectStandardOutput = true,
-                    RedirectStandardError = true, 
+                    RedirectStandardError = true,
                     UseShellExecute = false,
                 }
             };

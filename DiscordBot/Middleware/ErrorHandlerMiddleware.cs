@@ -1,5 +1,4 @@
 ﻿using DiscordBot.Middleware.Interfaces;
-using System;
 
 namespace DiscordBot.Middleware
 {

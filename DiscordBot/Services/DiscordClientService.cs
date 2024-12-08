@@ -17,11 +17,12 @@ namespace DiscordBot.Services
         private IUserHandler _userHandler;
         private IButtonHandler _buttonHandler;
         private IMessageHandler _messageHandler;
+        private IGuildHandler _guildHandler;
 
         private DiscordSocketClient _client;
 
         public DiscordClientService(IConfigurationRepository configurationRepository, ISlashCommandHandler slashCommandHandler, IReactionHandler reactionHandler,
-            IUserHandler userHandler, IButtonHandler buttonHandler, IMessageHandler messageHandler)
+            IUserHandler userHandler, IButtonHandler buttonHandler, IMessageHandler messageHandler, IGuildHandler guildHandler)
         {
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(IConfigurationRepository));
 
@@ -30,6 +31,7 @@ namespace DiscordBot.Services
             _userHandler = userHandler ?? throw new NullReferenceException(nameof(userHandler));
             _buttonHandler = buttonHandler ?? throw new NullReferenceException(nameof(buttonHandler));
             _messageHandler = messageHandler ?? throw new NullReferenceException(nameof(messageHandler));
+            _guildHandler = guildHandler ?? throw new NullReferenceException(nameof(guildHandler));
 
             var socketConfig = new DiscordSocketConfig
             {
@@ -40,7 +42,7 @@ namespace DiscordBot.Services
                     GatewayIntents.GuildWebhooks | GatewayIntents.GuildVoiceStates | GatewayIntents.GuildMessages | GatewayIntents.GuildMessageReactions |
                     GatewayIntents.GuildMessageTyping | GatewayIntents.DirectMessages | GatewayIntents.DirectMessageReactions | GatewayIntents.DirectMessageTyping |
                     GatewayIntents.AutoModerationConfiguration | GatewayIntents.AutoModerationActionExecution | GatewayIntents.GuildMessagePolls |
-                    GatewayIntents.DirectMessagePolls ,
+                    GatewayIntents.DirectMessagePolls,
                 MessageCacheSize = 10,
                 AlwaysDownloadDefaultStickers = true,
                 AlwaysResolveStickers = true,
@@ -70,6 +72,8 @@ namespace DiscordBot.Services
             _client.MessageReceived += _messageHandler.HandleMessageReceivedAsync;
             _client.MessageDeleted += _messageHandler.HandleMessageDeletedAsync;
             _client.MessageUpdated += _messageHandler.HandleMessageUpdatedAsync;
+
+            _client.JoinedGuild += _guildHandler.HandleJoinGuildAsync;
 
             _client.Ready += ClientReady;
             _client.Log += LogAsync;
@@ -109,7 +113,7 @@ namespace DiscordBot.Services
                         $"- Mfa: {_client.CurrentUser.IsMfaEnabled} \n  " +
                         $"- Clients: {_client.CurrentUser.ActiveClients.Count} \n  " +
                         $"- Created: {(_client.CurrentUser.CreatedAt.UtcDateTime).ToString().Substring(0, (_client.CurrentUser.CreatedAt.UtcDateTime).ToString().IndexOf(" "))} ");
-                        
+
                     break;
                 case LoginState.LoggedOut:
                     Console.WriteLine($"> Error logging in. Check that the tokens and keys are correct");
@@ -122,11 +126,10 @@ namespace DiscordBot.Services
             // Create new slash commands on app start
             _slashCommandHandler.CreateSlashCommandsAsync(_client);
 
-            Console.WriteLine($"> Bot ready");
+            Console.WriteLine($"> Application ready");
 
             return Task.CompletedTask;
         }
-
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
