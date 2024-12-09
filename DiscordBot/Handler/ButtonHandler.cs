@@ -1,18 +1,21 @@
 ﻿using Discord.WebSocket;
 using DiscordBot.Handler.Interfaces;
+using DiscordBot.Services.Interfaces;
 
 namespace DiscordBot.Handler
 {
     public class ButtonHandler : IButtonHandler
     {
-        public ButtonHandler()
-        {
+        private IMusicService _musicService;
 
+        public ButtonHandler(IMusicService musicService)
+        {
+            _musicService = musicService ?? throw new NullReferenceException(nameof(musicService));
         }
 
         public Task HandleButtonExecutedAsync(SocketMessageComponent component)
         {
-            if (component == null || component.User.IsBot)
+            if (component == null || component.GuildId is not ulong guildId)
             {
                 return Task.CompletedTask;
             }
@@ -23,15 +26,10 @@ namespace DiscordBot.Handler
                 // Use components id to filter which one was pressed
                 switch (component.Data.CustomId)
                 {
-                    case "test":
-                        await component.RespondAsync("Pressed id-play-button");
+                    case "skip-song-button":
+                        await _musicService.SkipSong(guildId, component);
                         break;
-                    case "id-rewind-song-button":
-                        break;
-                    case "id-stop-playing-button":
-                        break;
-                    case "id-skip-song-button":
-                        break;
+                   
                 }
             });
 

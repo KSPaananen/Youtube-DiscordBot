@@ -1,4 +1,5 @@
-﻿using DiscordBot.Models;
+﻿using Discord.WebSocket;
+using DiscordBot.Models;
 using DiscordBot.Modules.Interfaces;
 using System.Diagnostics;
 using System.Reflection;
@@ -13,10 +14,16 @@ namespace DiscordBot.Modules
 
         }
 
-        public Song GetSongFromQuery(string query)
+        public Song GetSongFromSlashCommand(SocketSlashCommand command)
         {
             try
             {
+                // Extract query from slash commands first parameter
+                if (command.Data.Options.First().Value.ToString() is not string query)
+                {
+                    throw new Exception($"> [ERROR]: SocketSlashCommands first parameter was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                }
+
                 string args = $"";
 
                 if (query.Contains("https://") && (query.Contains("youtube.com") || query.Contains("youtu.be")))
@@ -61,7 +68,7 @@ namespace DiscordBot.Modules
                         AudioUrl = root.GetProperty("url").GetString() ?? "",
                         ThumbnailUrl = root.GetProperty("thumbnail").GetString() ?? "",
                         Duration = TimeSpan.Parse(root.GetProperty("duration_string").GetString() ?? ""),
-                        Requester = null,
+                        Requester = command.User,
                     };
 
                     return song;

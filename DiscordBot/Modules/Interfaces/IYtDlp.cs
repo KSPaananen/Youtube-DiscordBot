@@ -1,10 +1,11 @@
-﻿using DiscordBot.Models;
+﻿using Discord.WebSocket;
+using DiscordBot.Models;
 
 namespace DiscordBot.Modules.Interfaces
 {
     public interface IYtDlp
     {
-        Song GetSongFromQuery(string link);
+        Song GetSongFromSlashCommand(SocketSlashCommand command);
 
     }
 }

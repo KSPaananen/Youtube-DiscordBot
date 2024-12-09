@@ -16,7 +16,6 @@ namespace DiscordBot.Modules
             var process = new Process
             {
                 // Additional possibly beneficial arguments
-                // -loglever error : Quiets log output
                 // -re : Realtime streaming
                 StartInfo = new ProcessStartInfo
                 {
@@ -34,6 +33,8 @@ namespace DiscordBot.Modules
                                 $"-timeout 1000000 " +
                                 $"-max_interleave_delta 0 " +
                                 $"-hide_banner " +
+                                $"-nostats " +
+                                $"-loglevel quiet " +
                                 $"-i \"{url}\" " +
                                 $"-ac 2 " + 
                                 $"-ar 48000 " +
