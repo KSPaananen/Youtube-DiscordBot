@@ -18,10 +18,11 @@ namespace DiscordBot.Services
         private IYtDlp _ytDlp;
         private IFFmpeg _ffmpeg;
 
-        private ConcurrentDictionary<ulong, List<Song>> _guildQueues;
-        private ConcurrentDictionary<ulong, CancellationTokenSource> _guildcTokenSources;
-        private ConcurrentDictionary<ulong, IAudioClient> _guildAudioClients;
-        private ConcurrentDictionary<ulong, ulong> _guildStreams; // StreamID, GuildID
+        private ConcurrentDictionary<ulong, List<Song>> _guildQueues; // Stores song queue
+        private ConcurrentDictionary<ulong, bool> _guildFirstSong; // Stores boolean which marks if first song has been played
+        private ConcurrentDictionary<ulong, CancellationTokenSource> _guildcTokenSources; // Stores task CancellationTokenSources
+        private ConcurrentDictionary<ulong, IAudioClient> _guildAudioClients; // Stores audioclients
+        private ConcurrentDictionary<ulong, ulong> _guildStreams; // Stored Stream ID's. Order => StreamID, GuildID
 
         private string _discordLink;
 
@@ -33,6 +34,7 @@ namespace DiscordBot.Services
             _ffmpeg = ffmpeg ?? throw new NullReferenceException(nameof(ffmpeg));
 
             _guildQueues = new();
+            _guildFirstSong = new();
             _guildcTokenSources = new();
             _guildAudioClients = new();
             _guildStreams = new();
@@ -42,7 +44,6 @@ namespace DiscordBot.Services
 
         // ToDo
         // - Buttons for embeds
-        // - Make bot work in dms
         // - Better error logic
 
         public async Task Play(SocketSlashCommand command)
@@ -99,7 +100,11 @@ namespace DiscordBot.Services
                             throw new Exception($"> [ERROR]: Unable to create IAudioClient with IVoiceChannel.ConnectAsync in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                         }
 
+                        // Tie audioclient variable to a guild id
                         _guildAudioClients.GetOrAdd(guildId, connectedAudioClient);
+
+                        // On connect set first song to true
+                        _guildFirstSong.GetOrAdd(guildId, true);
 
                         // Send an acknowledgement of the command
                         await AcknowledgeCommand(command);
@@ -218,8 +223,11 @@ namespace DiscordBot.Services
                     {
                         try
                         {
-                            // Display what we're playing in the response
+                            // Display what we're playing in a response
                             await ConstructResponses("now-playing", command);
+
+                            // Set firstSong boolean to false
+                            _guildFirstSong.TryUpdate(guildId, false, true);
 
                             // Write to outStream in pieces rather than all at once
                             byte[] buffer = new byte[8192];
@@ -231,6 +239,7 @@ namespace DiscordBot.Services
 
                                 await outStream.WriteAsync(buffer.AsMemory(0, bytesRead));
                             }
+
                         }
                         catch
                         {
@@ -247,6 +256,12 @@ namespace DiscordBot.Services
 
                             // Dispose stream to save resources
                             ffmpegStream.Dispose();
+
+                            // Check if songlist is empty. Set firstSong to true if thats the case
+                            if (songList.Count <= 0)
+                            {
+                                _guildFirstSong.TryUpdate(guildId, true, false);
+                            }
                         }
 
                     }
@@ -260,50 +275,82 @@ namespace DiscordBot.Services
 
         private async Task ConstructResponses(string type, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
         {
-            IGuildUser? user = null;
-            ulong guildId = 0;
+            // This method assumes we either get SocketSlashCommand or SocketMessageComponent.
+            // Both of them cannot have values or be null at the same time
 
-            if (command != null && command.GuildId is ulong commandGuildId && command.User is IGuildUser commandUser)
-            {
-                user = commandUser;
-                guildId = commandGuildId;
-            }
-            else if (component != null && component.GuildId is ulong componentGuildId && component.User is IGuildUser componentUser)
-            {
-                guildId = componentGuildId;
-                user = componentUser;
-            }
-
-            if (guildId == 0 || user == null)
+            if (command == null && component == null)
             {
                 return;
             }
 
-            List<Song> songList = _guildQueues.TryGetValue(guildId, out var list) && list.Any() ? list : new List<Song>();
+            List<Song> songList;
 
             var embedBuilder = new EmbedBuilder();
             var componentBuilder = new ComponentBuilder();
 
-            switch (type)
+            if (command != null && command.GuildId is ulong commandGuildId && command.User is IGuildUser commandUser)
             {
-                case "user-requested":
-                    embedBuilder.Author = new EmbedAuthorBuilder
+                // Construct error responses here. Succesful responses are handled in a separate switch tree
+                if (type is ("error" or "channel-not-found" or "channel-full"))
+                {
+                    switch (type)
                     {
-                        IconUrl = "",
-                        Name = $"Added a new song to the queue",
-                        Url = ""
-                    };
+                        case "error":
+                            embedBuilder.Title = $"Something went wrong :(";
+                            embedBuilder.Description = $"Something went wrong while executing **/{command.CommandName}**. ";
+                            break;
+                        case "channel-not-found":
+                            embedBuilder.Title = $"Couldn't find the voice channel";
+                            embedBuilder.Description = $"You should be connected to a voice channel before requesting **/{command.CommandName}**. ";
+                            break;
+                        case "channel-full":
+                            embedBuilder.Title = $"Couldn't connect to the voice channel";
+                            embedBuilder.Description = $"The voice channel is at maximum capacity. You could kick your least favorite friend to make room.";
+                            break;
+                    }
 
-                    embedBuilder.Title = songList[songList.Count - 1].Title;
-                    embedBuilder.Url = songList[songList.Count - 1].VideoUrl;
-                    embedBuilder.ThumbnailUrl = songList[songList.Count - 1].ThumbnailUrl;
-                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
-
-                    if (songList.Count > 2)
+                    // Extend response with a discordlink if its configured in appsettings.json
+                    if (_discordLink != "")
                     {
-                        if (embedBuilder.Fields == null || embedBuilder.Fields.Count <= 0)
+                        embedBuilder.Description = embedBuilder.Description + $"\n\nIf you believe this is a bug, please fill out a bug report at the developers discord server.";
+                        embedBuilder.Fields.Add(new EmbedFieldBuilder
                         {
-                            embedBuilder.Fields = new List<EmbedFieldBuilder>
+                            Name = $"Discord server",
+                            Value = _discordLink,
+                            IsInline = true
+                        });
+                    }
+
+                    // Add default configurations to embed
+                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = command.User.GlobalName, IconUrl = command.User.GetAvatarUrl() });
+
+                    await command.RespondAsync(embeds: [embedBuilder.Build()], ephemeral: true);
+
+                    return;
+                }
+
+                songList = _guildQueues.TryGetValue(commandGuildId, out var list) && list.Any() ? list : new List<Song>();
+
+                // Succesful responses are handled in this switch tree
+                switch (type)
+                {
+                    case "user-requested":
+                        embedBuilder.Author = new EmbedAuthorBuilder
+                        {
+                            IconUrl = "",
+                            Name = $"Added a new song to the queue",
+                            Url = ""
+                        };
+                        embedBuilder.Title = songList[songList.Count - 1].Title;
+                        embedBuilder.Url = songList[songList.Count - 1].VideoUrl;
+                        embedBuilder.ThumbnailUrl = songList[songList.Count - 1].ThumbnailUrl;
+                        embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.GlobalName, IconUrl = commandUser.GetAvatarUrl() });
+
+                        if (songList.Count > 2)
+                        {
+                            if (embedBuilder.Fields == null || embedBuilder.Fields.Count <= 0)
+                            {
+                                embedBuilder.Fields = new List<EmbedFieldBuilder>
                             {
                                 new EmbedFieldBuilder
                                 {
@@ -311,68 +358,68 @@ namespace DiscordBot.Services
                                     Value = $"- {songList[1].Title} \n",
                                 }
                             };
+                            }
+
+                            for (int i = 2; i != songList.Count; i++)
+                            {
+                                embedBuilder.Fields[0].Value += $"- {songList[i].Title} \n";
+                            }
                         }
 
-                        for (int i = 2; i != songList.Count; i++)
-                        {
-                            embedBuilder.Fields[0].Value += $"- {songList[i].Title} \n";
-                        }
-                    }
-
-                    if (command != null)
-                    {
                         await command.ModifyOriginalResponseAsync(msg =>
                         {
                             msg.Embeds = new[] { embedBuilder.Build() };
                             msg.Components = componentBuilder.Build();
                         });
-                    }
-                    break;
-                case "now-playing":
-                    // Configure embedBuilder
-                    embedBuilder.Author = new EmbedAuthorBuilder
-                    {
-                        IconUrl = null,
-                        Name = user.VoiceChannel == null ? "Now playing" : $"Now playing in {user.VoiceChannel}",
-                        Url = null
-                    };
-                    embedBuilder.Title = songList[0].Title;
-                    embedBuilder.Url = songList[0].AudioUrl;
-                    embedBuilder.Fields = new List<EmbedFieldBuilder>
-                    {
-                        new EmbedFieldBuilder
+                        break;
+                    case "now-playing":
+                        // Configure embedBuilder
+                        embedBuilder.Author = new EmbedAuthorBuilder
                         {
-                            Name = "Duration" ,
-                            Value = $"{songList[0].Duration.Hours:D2}:{songList[0].Duration.Minutes:D2}",
-                             IsInline = true
-                        },
-                        new EmbedFieldBuilder
+                            IconUrl = null,
+                            Name = commandUser.VoiceChannel == null ? "Now playing" : $"Now playing in {commandUser.VoiceChannel}",
+                            Url = null
+                        };
+                        embedBuilder.Title = songList[0].Title;
+                        embedBuilder.Url = songList[0].AudioUrl;
+                        embedBuilder.Fields = new List<EmbedFieldBuilder>
                         {
-                            Name = "Songs in queue" ,
-                            Value = $"{songList.Count - 1}",
+                            new EmbedFieldBuilder
+                            {
+                                Name = "Duration" ,
+                                Value = $"{songList[0].Duration.Hours:D2}:{songList[0].Duration.Minutes:D2}",
                                 IsInline = true
-                        }
-                    };
-                    embedBuilder.ImageUrl = songList[0].ThumbnailUrl;
+                            },
+                            new EmbedFieldBuilder
+                            {
+                                Name = "Songs in queue" ,
+                                Value = $"{songList.Count - 1}",
+                                IsInline = true
+                            }
+                        };
+                        embedBuilder.ImageUrl = songList[0].ThumbnailUrl;
+                        embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.GlobalName, IconUrl = commandUser.GetAvatarUrl() });
 
-                    // Add "Next song" field if we have more than 1 song in queue
-                    if (songList.Count > 1)
-                    {
-                        embedBuilder.Fields.Add(new EmbedFieldBuilder
-                        {
-                            Name = "Next in queue",
-                            Value = $"{songList[1].Title ?? "Title"}",
-                            IsInline = false
-                        });
-                    };
-                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
-
-                    // Configure componentBuilder
-                    componentBuilder.WithButton("Skip", "skip-song-button");
-
-                    if (command != null)
-                    {
+                        // Add "Next song" field if we have more than 1 song in queue
                         if (songList.Count > 1)
+                        {
+                            embedBuilder.Fields.Add(new EmbedFieldBuilder
+                            {
+                                Name = "Next in queue",
+                                Value = $"{songList[1].Title ?? "Title"}",
+                                IsInline = false
+                            });
+                        };
+
+                        // Configure componentBuilder
+                        componentBuilder.WithButton("Skip", "skip-song-button");
+
+                        bool firstSong = _guildFirstSong.TryGetValue(commandGuildId, out var foundFirstSong) ? foundFirstSong : true;
+
+                        // Send "Now playing" as independend message if
+                        // - Songlist has 2 or more songs
+                        // - firstSong is false
+                        if (songList.Count > 1 || firstSong == false)
                         {
                             await command.Channel.SendMessageAsync(embeds: [embedBuilder.Build()], components: componentBuilder.Build());
                         }
@@ -384,94 +431,72 @@ namespace DiscordBot.Services
                                 msg.Components = componentBuilder.Build();
                             });
                         }
-                    }
-                    break;
-                case "song-skipped":
-                    embedBuilder.Author = new EmbedAuthorBuilder
-                    {
-                        IconUrl = null,
-                        Name = user.VoiceChannel == null ? "Song skipped" : $"{user.Mention} skipped a song",
-                        Url = null
-                    };
-                    embedBuilder.Title = songList[0].Title;
-                    embedBuilder.Url = songList[0].AudioUrl;
-                    embedBuilder.ThumbnailUrl = songList[0].ThumbnailUrl;
-                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
+                        break;
+                    default:
+                        break;
 
-                    if (component != null)
-                    {
-                        await component.RespondAsync(embeds: new[] { embedBuilder.Build() });
-                    }
-                    break;
+                }
+
+                return;
             }
-
-            // ↓↓ Errors handled below ↓↓
-            if (type is not ("error" or "channel-not-found" or "channel-full"))
+            else if (component != null && component.GuildId is ulong componentGuildId && component.User is IGuildUser componentUser)
             {
+                songList = _guildQueues.TryGetValue(componentGuildId, out var list) && list.Any() ? list : new List<Song>();
+
+                switch (type)
+                {
+                    case "song-skipped":
+                        embedBuilder.Author = new EmbedAuthorBuilder
+                        {
+                            IconUrl = null,
+                            Name = $"Song skipped",
+                            Url = null
+                        };
+                        embedBuilder.Title = songList[0].Title;
+                        embedBuilder.Url = songList[0].AudioUrl;
+                        embedBuilder.ThumbnailUrl = songList[0].ThumbnailUrl;
+                        embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.GlobalName, IconUrl = componentUser.GetAvatarUrl() });
+
+                        await component.RespondAsync(embeds: new[] { embedBuilder.Build() });
+                        break;
+                    default:
+                        break;
+                }
+
                 return;
             }
 
-            switch (type)
-            {
-                case "error":
-                    embedBuilder.Title = $"Something went wrong :(";
-                    embedBuilder.Description = $"Something went wrong while executing **/{command.CommandName}**. ";
-                    break;
-                case "channel-not-found":
-                    embedBuilder.Title = $"Couldn't connect to a voice channel";
-                    embedBuilder.Description = $"You should be connected to a voice channel before requesting **/{command.CommandName}**. ";
-                    break;
-                case "channel-full":
-                    embedBuilder.Title = $"Couldn't connect to the voice channel";
-                    embedBuilder.Description = $"The voice channel is at maximum capacity. You could kick your least favorite friend to make room.";
-                    break;
-            }
-
-            // Add developer details if its configured in appsettings.json
-            if (!String.IsNullOrEmpty(_discordLink))
-            {
-                if (type == "error")
-                {
-                    embedBuilder.Description = embedBuilder.Description + $"Please fill out a bug report at the developers discord server. ";
-                }
-                else
-                {
-                    embedBuilder.Description = embedBuilder.Description + $"\n\nIf you believe this is a bug, please fill out a bug report at the developers discord server.";
-                }
-
-                embedBuilder.Fields.Add(new EmbedFieldBuilder
-                {
-                    Name = $"Discord server",
-                    Value = _discordLink,
-                    IsInline = true
-                });
-            }
-
-            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = command.User.GlobalName, IconUrl = command.User.GetAvatarUrl() });
-
-            await command.RespondAsync(embeds: [embedBuilder.Build()], ephemeral: true);
+            // Error handling here since both component and command are null?
 
             return;
         }
 
         private Task StreamDestroyed(ulong streamId)
         {
-            var guildId = _guildStreams.TryGetValue(streamId, out var foundGuildId) ? foundGuildId : 0;
-
-            if (guildId > 0)
+            // Purge all resources tied to the guild
+            if (_guildStreams.TryGetValue(streamId, out var guildId))
             {
-                // Dispose IAudioClient
-                if (_guildAudioClients.TryGetValue(guildId, out var audioClient))
-                {
-                    audioClient.Dispose();
-                }
+                _guildStreams.TryRemove(streamId, out _);
+            }
 
-                // Remove guild from guildqueues
-                if (_guildQueues.TryGetValue(guildId, out var songList))
-                {
-                    _guildQueues.TryRemove(guildId, out _);
-                }
+            if (_guildQueues.TryGetValue(guildId, out var songList))
+            {
+                _guildQueues.TryRemove(guildId, out _);
+            }
 
+            if (_guildFirstSong.TryGetValue(guildId, out var firstSong))
+            {
+                _guildFirstSong.TryRemove(guildId, out _);
+            }
+
+            if (_guildAudioClients.TryGetValue(guildId, out var audioClient))
+            {
+                _guildAudioClients.TryRemove(guildId, out _);
+            }
+
+            if (_guildcTokenSources.TryGetValue(guildId, out var cTokenSource))
+            {
+                _guildcTokenSources.TryRemove(guildId, out _);
             }
 
             return Task.CompletedTask;
