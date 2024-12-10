@@ -127,23 +127,35 @@ namespace DiscordBot.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message ?? $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                Console.WriteLine(ex.Message  == null ? $"[ERROR]: {ex.Message}" : $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+
+                // Modify acknowledged command response with error details
+                await ConstructResponses("error", command);
             }
 
         }
 
         public async Task SkipSong(ulong GuildId, SocketMessageComponent component)
         {
-            // Queue clearing, CancellationTokenSource renewal etc is handled at StreamAudio
-            var cTokenSource = _guildcTokenSources.TryGetValue(GuildId, out var foundcTokenSource) ? foundcTokenSource : null;
-
-            if (cTokenSource != null)
+            try
             {
-                cTokenSource.Cancel();
-            }
+                // Get guilds token source and request cancel
+                var cTokenSource = _guildcTokenSources.TryGetValue(GuildId, out var foundcTokenSource) ? foundcTokenSource : null;
 
-            // Provide response
-            await ConstructResponses("song-skipped", component: component);
+                if (cTokenSource != null)
+                {
+                    cTokenSource.Cancel();
+                }
+
+                await ConstructResponses("song-skipped", component: component);
+
+                // Song list skipping etc is handled at StreamAudio() so no need to anything else here
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message == null ? $"[ERROR]: {ex.Message}" : $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            }
 
             return;
         }
@@ -183,11 +195,9 @@ namespace DiscordBot.Services
             // Create song object with slashcommands first parameter
             Song song = _ytDlp.GetSongFromSlashCommand(command);
 
-            var foundId = command.GuildId > 0 ? command.GuildId : command.ChannelId;
-
-            if (foundId != null)
+            if (command.GuildId is ulong guildId)
             {
-                _guildQueues.GetOrAdd((ulong)foundId, _ => new List<Song>()).Add(song);
+                _guildQueues.GetOrAdd(guildId, _ => new List<Song>()).Add(song);
 
                 // Don't inform of user request if queue is empty
                 if (_guildQueues.TryGetValue((ulong)command.GuildId!, out var songList) ? songList.Count > 1 : false)
@@ -203,7 +213,7 @@ namespace DiscordBot.Services
         {
             if (command.GuildId is not ulong guildId)
             {
-                return Task.CompletedTask;
+                throw new Exception($"Command GuildID was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
             var songList = _guildQueues.TryGetValue(guildId, out var foundList) ? foundList : null;
@@ -278,9 +288,9 @@ namespace DiscordBot.Services
             // This method assumes we either get SocketSlashCommand or SocketMessageComponent.
             // Both of them cannot have values or be null at the same time
 
-            if (command == null && component == null)
+            if ((command == null && component == null) || (command != null && component != null))
             {
-                return;
+                throw new Exception($"Both SocketSlashCommand and SocketMessageComponent were null or had values in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
             List<Song> songList;
@@ -291,7 +301,7 @@ namespace DiscordBot.Services
             if (command != null && command.GuildId is ulong commandGuildId && command.User is IGuildUser commandUser)
             {
                 // Construct error responses here. Succesful responses are handled in a separate switch tree
-                if (type is ("error" or "channel-not-found" or "channel-full"))
+                if (type is ("error" or "error-skipping" or "channel-not-found" or "channel-full"))
                 {
                     switch (type)
                     {
@@ -309,10 +319,25 @@ namespace DiscordBot.Services
                             break;
                     }
 
+                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = command.User.GlobalName, IconUrl = command.User.GetAvatarUrl() });
+
                     // Extend response with a discordlink if its configured in appsettings.json
                     if (_discordLink != "")
                     {
-                        embedBuilder.Description = embedBuilder.Description + $"\n\nIf you believe this is a bug, please fill out a bug report at the developers discord server.";
+                        // Adjust extended description based on type
+                        switch (type)
+                        {
+                            case "error":
+                                embedBuilder.Description = embedBuilder.Description + $"\n\nPlease fill out a bug report at the developers discord server.";
+                                break;
+                            case "channel-not-found":
+                                embedBuilder.Description = embedBuilder.Description + $"\n\nIf you believe this is a bug, please fill out a bug report at the developers discord server.";
+                                break;
+                            case "channel-full":
+                                embedBuilder.Description = embedBuilder.Description + $"\n\nIf you believe this is a bug, please fill out a bug report at the developers discord server.";
+                                break;
+                        }
+
                         embedBuilder.Fields.Add(new EmbedFieldBuilder
                         {
                             Name = $"Discord server",
@@ -321,10 +346,18 @@ namespace DiscordBot.Services
                         });
                     }
 
-                    // Add default configurations to embed
-                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = command.User.GlobalName, IconUrl = command.User.GetAvatarUrl() });
-
-                    await command.RespondAsync(embeds: [embedBuilder.Build()], ephemeral: true);
+                    // Try first responding to the command. On error modify response
+                    try
+                    {
+                        await command.RespondAsync(embeds: [embedBuilder.Build()], ephemeral: true);
+                    }
+                    catch
+                    {
+                        await command.ModifyOriginalResponseAsync(msg =>
+                        {
+                            msg.Embeds = new[] { embedBuilder.Build() };
+                        });
+                    }
 
                     return;
                 }
@@ -465,8 +498,6 @@ namespace DiscordBot.Services
 
                 return;
             }
-
-            // Error handling here since both component and command are null?
 
             return;
         }
