@@ -6,7 +6,7 @@ namespace DiscordBot.Handler.Interfaces
     {
         Task HandleSlashCommand(SocketSlashCommand command);
 
-        Task CreateSlashCommandsAsync(DiscordSocketClient client);
+        Task CreateSlashCommandsAsync();
 
     }
 }

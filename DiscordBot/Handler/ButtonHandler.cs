@@ -26,10 +26,14 @@ namespace DiscordBot.Handler
                 // Use components id to filter which one was pressed
                 switch (component.Data.CustomId)
                 {
-                    case "skip-song-button":
-                        await _musicService.SkipSong(guildId, component);
+                    case "embed-skip-button":
+                        await _musicService.SkipSong(guildId, null, component);
                         break;
-                   
+                    case "embed-clear-queue-button":
+                        
+                        break;
+
+
                 }
             });
 

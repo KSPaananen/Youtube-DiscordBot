@@ -100,7 +100,7 @@ namespace DiscordBot.Services
             Console.WriteLine($"> Creating slash commands...");
 
             // Create new slash commands on app start
-            _slashCommandHandler.CreateSlashCommandsAsync(_client);
+            _slashCommandHandler.CreateSlashCommandsAsync();
 
             Console.WriteLine($"> Application ready \n");
 

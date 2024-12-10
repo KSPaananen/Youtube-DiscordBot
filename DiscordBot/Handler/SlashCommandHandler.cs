@@ -11,11 +11,15 @@ namespace DiscordBot.Handler
     {
         private IConfigurationRepository _configurationRepository;
 
+        private DiscordSocketClient _client;
+
         private IMusicService _musicService;
 
-        public SlashCommandHandler(IConfigurationRepository configurationRepository, IMusicService musicService)
+        public SlashCommandHandler(IConfigurationRepository configurationRepository, DiscordSocketClient client, IMusicService musicService)
         {
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(configurationRepository));
+
+            _client = client ?? throw new NullReferenceException(nameof(client));
 
             _musicService = musicService ?? throw new NullReferenceException(nameof(musicService));
         }
@@ -50,7 +54,7 @@ namespace DiscordBot.Handler
             return Task.CompletedTask;
         }
 
-        public async Task CreateSlashCommandsAsync(DiscordSocketClient client)
+        public async Task CreateSlashCommandsAsync()
         {
             // Add all commands to this list
             List<ApplicationCommandProperties> globalAppCommandsList = new();
@@ -83,7 +87,7 @@ namespace DiscordBot.Handler
             };
 
             // Write all global command from list
-            await client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray(), requestOptions);
+            await _client.BulkOverwriteGlobalApplicationCommandsAsync(globalAppCommandsList.ToArray(), requestOptions);
 
             return;
         }
