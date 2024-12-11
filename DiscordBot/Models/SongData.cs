@@ -2,7 +2,7 @@
 
 namespace DiscordBot.Models
 {
-    public class Song
+    public class SongData
     {
         public string Title { get; set; } = string.Empty;
 

@@ -5,7 +5,7 @@ namespace DiscordBot.Modules.Interfaces
 {
     public interface IYtDlp
     {
-        Song GetSongFromSlashCommand(SocketSlashCommand command);
+        SongData GetSongFromSlashCommand(SocketSlashCommand command);
 
     }
 }

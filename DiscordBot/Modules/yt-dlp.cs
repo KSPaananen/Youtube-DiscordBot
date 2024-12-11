@@ -14,7 +14,7 @@ namespace DiscordBot.Modules
 
         }
 
-        public Song GetSongFromSlashCommand(SocketSlashCommand command)
+        public SongData GetSongFromSlashCommand(SocketSlashCommand command)
         {
             try
             {
@@ -61,7 +61,7 @@ namespace DiscordBot.Modules
                 {
                     JsonElement root = document.RootElement;
 
-                    Song song = new Song
+                    SongData song = new SongData
                     {
                         Title = root.GetProperty("title").GetString() ?? "",
                         VideoUrl = root.GetProperty("original_url").GetString() ?? "",

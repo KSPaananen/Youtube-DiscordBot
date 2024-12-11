@@ -18,11 +18,7 @@ namespace DiscordBot.Services
         private IYtDlp _ytDlp;
         private IFFmpeg _ffmpeg;
 
-        private ConcurrentDictionary<ulong, List<Song>> _guildQueues; // Stores song queue
-        private ConcurrentDictionary<ulong, bool> _guildFirstSongs; // Stores boolean which marks if first song has been played
-        private ConcurrentDictionary<ulong, CancellationTokenSource> _guildcTokenSources; // Stores task CancellationTokenSources
-        private ConcurrentDictionary<ulong, IAudioClient> _guildAudioClients; // Stores audioclients
-        private ConcurrentDictionary<ulong, ulong> _guildStreamIds; // Stored Stream ID's. Order => StreamID, GuildID
+        private ConcurrentDictionary<ulong, GuildData> _guildData;
 
         private string _discordLink;
 
@@ -33,18 +29,13 @@ namespace DiscordBot.Services
             _ytDlp = ytDlp ?? throw new NullReferenceException(nameof(ytDlp));
             _ffmpeg = ffmpeg ?? throw new NullReferenceException(nameof(ffmpeg));
 
-            _guildQueues = new();
-            _guildFirstSongs = new();
-            _guildcTokenSources = new();
-            _guildAudioClients = new();
-            _guildStreamIds = new();
+            _guildData = new();
 
             _discordLink = _configurationRepository.GetDiscordLink();
         }
 
         // ToDo
         // - Stop playing button?
-        // - Combine all ConcurrentDictionaries into one with Guild model
         // - Disable Buttons from the last "now-playing" embed when song is over
 
         public async Task Play(SocketSlashCommand command)
@@ -55,8 +46,11 @@ namespace DiscordBot.Services
                 {
                     throw new Exception($"> [ERROR]: SocketSlashCommand.User was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
+
+                // Try finding an already existing guild in the dictionary
+                var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : new GuildData();
+
                 var voiceChannel = user.VoiceChannel;
-                var audioClient = _guildAudioClients.TryGetValue(guildId, out var foundClient) ? foundClient : null;
 
                 if (voiceChannel != null)
                 {
@@ -72,7 +66,7 @@ namespace DiscordBot.Services
 
                         return;
                     }
-                    else if (audioClient != null && audioClient.ConnectionState == ConnectionState.Connected)
+                    else if (guildData.AudioClient != null && guildData.AudioClient.ConnectionState == ConnectionState.Connected)
                     {
                         // Tell discord we have received interaction
                         await DeferInteractionAsync(command);
@@ -81,31 +75,28 @@ namespace DiscordBot.Services
                         await AppendQueryToQueueAsync(command);
 
                         // Stream audio
-                        await StreamAudio(command, audioClient);
+                        await StreamAudio(command);
 
                         return;
                     }
-                    else if (audioClient == null || audioClient.ConnectionState == ConnectionState.Disconnected)
+                    else if (guildData.AudioClient == null || guildData.AudioClient.ConnectionState == ConnectionState.Disconnected)
                     {
-                        IAudioClient connectedAudioClient = await user.VoiceChannel.ConnectAsync(true, false, false, false);
+                        guildData.AudioClient = await user.VoiceChannel.ConnectAsync(true, false, false, false);
 
                         // Attach methods to events
-                        connectedAudioClient.StreamDestroyed += StreamDestroyed;
+                        guildData.AudioClient.StreamDestroyed += StreamDestroyed;
 
-                        // Get stream id and tie it to guild id
-                        var streamId = connectedAudioClient.GetStreams().First().Key;
-                        _guildStreamIds.TryAdd(streamId, (ulong)command.GuildId);
-
-                        if (connectedAudioClient == null || connectedAudioClient.ConnectionState == ConnectionState.Disconnected)
+                        // Check if we we're able to connect. Throw error if not
+                        if (guildData.AudioClient == null || guildData.AudioClient.ConnectionState == ConnectionState.Disconnected)
                         {
-                            throw new Exception($"> [ERROR]: Unable to create IAudioClient with IVoiceChannel.ConnectAsync in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                            throw new Exception($"Unable to create IAudioClient with IVoiceChannel.ConnectAsync in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                         }
 
-                        // Tie IAudioClient variable to a guild id
-                        _guildAudioClients.GetOrAdd(guildId, connectedAudioClient);
+                        // Set Guilds first song to true
+                        guildData.FirstSong = true;
 
-                        // On connect set first song to true
-                        _guildFirstSongs.GetOrAdd(guildId, true);
+                        // Update _guildData with guildData object
+                        _guildData.AddOrUpdate(guildId, guildData, (key, oldValue) => oldValue);
 
                         // Tell discord we have received interaction
                         await DeferInteractionAsync(command);
@@ -114,7 +105,7 @@ namespace DiscordBot.Services
                         await AppendQueryToQueueAsync(command);
 
                         // Stream audio
-                        await StreamAudio(command, connectedAudioClient);
+                        await StreamAudio(command);
                     }
 
                 }
@@ -128,7 +119,7 @@ namespace DiscordBot.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : Play()");
 
                 // Modify acknowledged command response with error details
                 await RespondToSlashCommand("error", command);
@@ -136,7 +127,7 @@ namespace DiscordBot.Services
 
         }
 
-        public async Task SkipSong(ulong GuildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
+        public async Task SkipSong(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
         {
             // This method assumes that only either command or component has a value.
             // Both SocketSlashCommand and SocketMessageComponent cannot have a value at the same time
@@ -144,14 +135,15 @@ namespace DiscordBot.Services
             try
             {
                 // Get guilds token source and request cancel with the token source
-                var cTokenSource = _guildcTokenSources.TryGetValue(GuildId, out var foundcTokenSource) ? foundcTokenSource : null;
+                GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                CancellationTokenSource cTokenSource = guildData.cTokenSource;
 
                 if (cTokenSource == null)
                 {
                     throw new Exception($"CancellationTokenSource was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
 
-                // Tell discord we acknowledge the interaction
+                // Tell discord that we acknowledge the interaction
                 var validObject = await DeferInteractionAsync(command, component);
 
                 switch (validObject)
@@ -178,7 +170,7 @@ namespace DiscordBot.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : SkipSong()");
             }
 
             return;
@@ -191,13 +183,8 @@ namespace DiscordBot.Services
 
             try
             {
-                // Get guilds songlist
-                var songList = _guildQueues.TryGetValue(guildId, out var foundList) ? foundList : null;
-
-                if (songList == null)
-                {
-                    throw new Exception($"List<Song> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
-                }
+                // Get guilds queue
+                GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
 
                 // Tell discord we acknowledge the interaction
                 var validObject = await DeferInteractionAsync(command, component);
@@ -211,8 +198,11 @@ namespace DiscordBot.Services
 
                         break;
                     case SocketMessageComponent:
-                        // Replace the song list tied to guild, but include the currently playing song in the new list
-                        _guildQueues.TryUpdate(guildId, new List<Song> { songList[0] }, songList);
+                        // Replace the song queue tied to guild, but include the currently playing song in the new queue
+                        guildData.Queue = new List<SongData>() { guildData.Queue[0] };
+
+                        // Update guild data
+                        _guildData.TryUpdate(guildId, foundGuild, foundGuild);
 
                         await RespondToMessageComponents("queue-cleared", (SocketMessageComponent)validObject);
 
@@ -222,7 +212,7 @@ namespace DiscordBot.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : ClearQueue()");
             }
 
             return;
@@ -251,69 +241,73 @@ namespace DiscordBot.Services
 
         }
 
-        private CancellationTokenSource UpdateOrAddCancellationTokenSource(ulong guildId, CancellationTokenSource? oldcTokenSource = null)
+        private CancellationTokenSource UpdateOrAddCancellationTokenSource(ulong guildId)
         {
-            CancellationTokenSource newcTokenSource = new();
-
-            if (oldcTokenSource == null)
+            // Updae cTokenSource property of GuildData
+            if (_guildData.TryGetValue(guildId, out var foundGuild))
             {
-                _guildcTokenSources.AddOrUpdate(guildId, newcTokenSource, (key, oldValue) => oldValue);
-            }
-            else
-            {
-                _guildcTokenSources.TryUpdate(guildId, newcTokenSource, oldcTokenSource);
+                foundGuild.cTokenSource = new CancellationTokenSource();
+
+                // Update guild data
+                _guildData.TryUpdate(guildId, foundGuild, foundGuild);
+
+                return foundGuild.cTokenSource;
             }
 
-            return newcTokenSource;
+            throw new Exception($"GuildData object was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
         }
 
         private async Task AppendQueryToQueueAsync(SocketSlashCommand command)
         {
-            // Create song object with slashcommands first parameter
-            Song song = _ytDlp.GetSongFromSlashCommand(command);
-
-            if (command.GuildId is ulong guildId)
+            if (command.GuildId is ulong guildId && _guildData.TryGetValue(guildId, out var foundGuild))
             {
-                _guildQueues.GetOrAdd(guildId, _ => new List<Song>()).Add(song);
+                // Create song object with slashcommands first parameter and add it to queue
+                SongData song = _ytDlp.GetSongFromSlashCommand(command);
 
-                // Don't inform of user request if queue is empty
-                if (_guildQueues.TryGetValue((ulong)command.GuildId!, out var songList) ? songList.Count > 1 : false)
+                foundGuild.Queue.Add(song);
+
+                // Update guild data
+                _guildData.TryUpdate(guildId, foundGuild, foundGuild);
+
+                // Don't respond with "user-requested" if queue count is 1
+                if (foundGuild.Queue.Count > 1)
                 {
                     await RespondToSlashCommand("user-requested", command);
                 }
 
-                // Update or create CancellationTokenSource for threads tied to guild id
-                UpdateOrAddCancellationTokenSource(guildId);
             }
 
             return;
         }
 
-        private Task StreamAudio(SocketSlashCommand command, IAudioClient audioClient)
+        private Task StreamAudio(SocketSlashCommand command)
         {
             if (command.GuildId is not ulong guildId)
             {
                 throw new Exception($"Command GuildID was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
-            var songList = _guildQueues.TryGetValue(guildId, out var foundList) ? foundList : throw new Exception($"List<Song> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
-            var cTokenSource = _guildcTokenSources.TryGetValue(guildId, out var foundcTokenSource) ? foundcTokenSource : throw new Exception($"CancellationTokenSource was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            if (!_guildData.TryGetValue(guildId, out var guildData) || guildData.Queue == null || guildData.AudioClient == null || guildData.cTokenSource == null)
+            {
+                throw new Exception($"Guild data was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            }
+
+            List<SongData> queue = guildData.Queue;
+            IAudioClient audioClient = guildData.AudioClient;
+            CancellationTokenSource cTokenSource = guildData.cTokenSource;
 
             // Create task with cancellation token tied to guild id
             Task streamAudioTask = new Task(async () =>
             {
-                while (songList.Count > 0)
+                while (queue.Count > 0)
                 {
-                    using (var ffmpegStream = _ffmpeg.GetAudioStreamFromUrl(songList[0].AudioUrl))
+                    using (var ffmpegStream = _ffmpeg.GetAudioStreamFromUrl(queue[0].AudioUrl))
                     using (var outStream = audioClient.CreatePCMStream(AudioApplication.Music, bufferMillis: 1000))
                     {
                         try
                         {
                             // Display what we're playing in a response
                             await RespondToSlashCommand("now-playing", command);
-
-                            // Set firstSong boolean to false
-                            _guildFirstSongs.TryUpdate(guildId, false, true);
 
                             // Write to outStream in pieces rather than all at once
                             byte[] buffer = new byte[8192];
@@ -330,7 +324,7 @@ namespace DiscordBot.Services
                         catch
                         {
                             // Rewnew CancellationTokenSource, update guild cts with it and replace old cTokenSource with the new one
-                            cTokenSource = UpdateOrAddCancellationTokenSource(guildId, cTokenSource);
+                            cTokenSource = UpdateOrAddCancellationTokenSource(guildId);
                         }
                         finally
                         {
@@ -340,22 +334,28 @@ namespace DiscordBot.Services
                             // Dispose stream to save resources
                             ffmpegStream.Dispose();
 
-                            // Get updated version of songList
-                            songList = _guildQueues.TryGetValue(guildId, out var foundList) ? foundList : throw new Exception($"List<Song> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                            // Get updated version of queue
+                            var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                            queue = guildData.Queue;
+                            
+                            // Remove the song we just played from the queue
+                            queue.RemoveAt(0);
 
-                            // Remove the song we just played from the song list
-                            songList.RemoveAt(0);
+                            // Set FirstSong to false
+                            guildData.FirstSong = false;
 
                             // Check if songlist is empty. Set firstSong to true if thats the case
-                            if (songList.Count <= 0)
+                            if (queue.Count <= 0)
                             {
-                                // Set firstSong to true if songlist is empty
-                                _guildFirstSongs.TryUpdate(guildId, true, false);
+                                guildData.FirstSong = true;
 
-                                // Disable buttons from the last "now-playing" notification
-                                
+                                // To Do:
+                                // - Disable buttons from last "now-playing" message
 
                             }
+
+                            // Update guild data
+                            _guildData.TryUpdate(guildId, foundGuild, foundGuild);
 
                         }
 
@@ -363,8 +363,8 @@ namespace DiscordBot.Services
                 }
             }, cTokenSource.Token);
 
-            // Don't start another task songList count is more than 1
-            if (songList.Count <= 1)
+            // Don't start another task if queue count is more than 1
+            if (queue.Count <= 1)
             {
                 streamAudioTask.Start();
             }
@@ -376,7 +376,7 @@ namespace DiscordBot.Services
         {
             if (command == null || command.GuildId is not ulong guildId || command.User is not IGuildUser user)
             {
-                throw new Exception($"SocketSlashCommand was null in{this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                throw new Exception($"SocketSlashCommand was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
             var embedBuilder = new EmbedBuilder();
@@ -401,6 +401,7 @@ namespace DiscordBot.Services
                         break;
                 }
 
+                // Insert default values to embed
                 embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = command.User.GlobalName, IconUrl = command.User.GetAvatarUrl() });
 
                 // Extend response with a discordlink if its configured in appsettings.json
@@ -441,7 +442,8 @@ namespace DiscordBot.Services
                 return;
             }
 
-            List<Song> songList = _guildQueues.TryGetValue(guildId, out var list) && list.Any() ? list : new List<Song>();
+            var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            List<SongData> queue = guildData.Queue;
 
             // Succesful responses are handled in this switch tree
             switch (type)
@@ -453,12 +455,12 @@ namespace DiscordBot.Services
                         Name = $"Added a new song to the queue",
                         Url = ""
                     };
-                    embedBuilder.Title = songList[songList.Count - 1].Title;
-                    embedBuilder.Url = songList[songList.Count - 1].VideoUrl;
-                    embedBuilder.ThumbnailUrl = songList[songList.Count - 1].ThumbnailUrl;
+                    embedBuilder.Title = queue[queue.Count - 1].Title;
+                    embedBuilder.Url = queue[queue.Count - 1].VideoUrl;
+                    embedBuilder.ThumbnailUrl = queue[queue.Count - 1].ThumbnailUrl;
                     embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
 
-                    if (songList.Count > 2)
+                    if (queue.Count > 2)
                     {
                         if (embedBuilder.Fields == null || embedBuilder.Fields.Count <= 0)
                         {
@@ -467,14 +469,14 @@ namespace DiscordBot.Services
                                 new EmbedFieldBuilder
                                 {
                                     Name = "Songs in the queue",
-                                    Value = $"- {songList[1].Title} \n",
+                                    Value = $"- {queue[1].Title} \n",
                                 }
                             };
                         }
 
-                        for (int i = 2; i != songList.Count; i++)
+                        for (int i = 2; i != queue.Count; i++)
                         {
-                            embedBuilder.Fields[0].Value += $"- {songList[i].Title} \n";
+                            embedBuilder.Fields[0].Value += $"- {queue[i].Title} \n";
                         }
                     }
 
@@ -491,33 +493,33 @@ namespace DiscordBot.Services
                         Name = user.VoiceChannel == null ? "Now playing" : $"Now playing in {user.VoiceChannel}",
                         Url = null
                     };
-                    embedBuilder.Title = songList[0].Title;
-                    embedBuilder.Url = songList[0].VideoUrl;
+                    embedBuilder.Title = queue[0].Title;
+                    embedBuilder.Url = queue[0].VideoUrl;
                     embedBuilder.Fields = new List<EmbedFieldBuilder>
                     {
                         new EmbedFieldBuilder
                         {
                             Name = "Duration" ,
-                            Value = $"{songList[0].Duration.Hours:D2}:{songList[0].Duration.Minutes:D2}",
+                            Value = $"{queue[0].Duration.Hours:D2}:{queue[0].Duration.Minutes:D2}",
                             IsInline = true
                         },
                         new EmbedFieldBuilder
                         {
                             Name = "Songs in queue" ,
-                            Value = $"{songList.Count - 1}",
+                            Value = $"{queue.Count - 1}",
                             IsInline = true
                         }
                     };
-                    embedBuilder.ImageUrl = songList[0].ThumbnailUrl;
+                    embedBuilder.ImageUrl = queue[0].ThumbnailUrl;
                     embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
 
                     // Add "Next song" field if we have more than 1 song in queue
-                    if (songList.Count > 1)
+                    if (queue.Count > 1)
                     {
                         embedBuilder.Fields.Add(new EmbedFieldBuilder
                         {
                             Name = "Next in queue",
-                            Value = $"{songList[1].Title ?? "Title"}",
+                            Value = $"{queue[1].Title ?? "Title"}",
                             IsInline = false
                         });
                     };
@@ -541,12 +543,10 @@ namespace DiscordBot.Services
                     var rowBuilder = new ActionRowBuilder()
                             .WithComponents(buttons);
 
-                    bool firstSong = _guildFirstSongs.TryGetValue(guildId, out var foundFirstSong) ? foundFirstSong : true;
-
                     // Send "Now playing" as independend message if
                     // - Songlist has 2 or more songs
                     // - firstSong is false
-                    if (songList.Count > 1 || firstSong == false)
+                    if (queue.Count > 1 || guildData.FirstSong == false)
                     {
                         await command.Channel.SendMessageAsync(embeds: [embedBuilder.Build()], components: componentBuilder.WithRows(new[] { rowBuilder }).Build());
                     }
@@ -578,7 +578,8 @@ namespace DiscordBot.Services
             var embedBuilder = new EmbedBuilder();
             var componentBuilder = new ComponentBuilder();
 
-            List<Song> songList = _guildQueues.TryGetValue(guildId, out var list) && list.Any() ? list : new List<Song>();
+            var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            List<SongData> queue = guildData.Queue;
 
             switch (type)
             {
@@ -589,9 +590,9 @@ namespace DiscordBot.Services
                         Name = $"Song skipped in {user.VoiceChannel}",
                         Url = null
                     };
-                    embedBuilder.Title = songList[0].Title;
-                    embedBuilder.Url = songList[0].VideoUrl;
-                    embedBuilder.ThumbnailUrl = songList[0].ThumbnailUrl;
+                    embedBuilder.Title = queue[0].Title;
+                    embedBuilder.Url = queue[0].VideoUrl;
+                    embedBuilder.ThumbnailUrl = queue[0].ThumbnailUrl;
                     embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
 
                     await component.FollowupAsync(embeds: new[] { embedBuilder.Build() });
@@ -632,19 +633,19 @@ namespace DiscordBot.Services
                     var originalEmbeds = component.Message.Embeds.First();
 
                     var buttons = new List<IMessageComponent>
-                        {
-                            new ButtonBuilder()
+                    {
+                        new ButtonBuilder()
                                 .WithLabel("Clear queue")
                                 .WithStyle(ButtonStyle.Secondary)
                                 .WithCustomId("embed-clear-queue-button")
                                 .WithDisabled(true).Build(),
 
-                            new ButtonBuilder()
+                        new ButtonBuilder()
                                 .WithLabel("Skip song")
                                 .WithStyle(ButtonStyle.Secondary)
                                 .WithCustomId("embed-skip-button")
                                 .WithDisabled(true).Build(),
-                        };
+                    };
 
                     var rowBuilder = new ActionRowBuilder()
                             .WithComponents(buttons);
@@ -664,30 +665,17 @@ namespace DiscordBot.Services
 
         private Task StreamDestroyed(ulong streamId)
         {
-            // Purge all resources tied to the guild
-            if (_guildStreamIds.TryGetValue(streamId, out var guildId))
-            {
-                _guildStreamIds.TryRemove(streamId, out _);
-            }
+            // ToDo:
+            // - Figure out a more resource efficient solution here
 
-            if (_guildQueues.TryGetValue(guildId, out var songList))
+            // Iterate through guild data dictionary looking for stream id
+            foreach (var entry in _guildData)
             {
-                _guildQueues.TryRemove(guildId, out _);
-            }
-
-            if (_guildFirstSongs.TryGetValue(guildId, out var firstSong))
-            {
-                _guildFirstSongs.TryRemove(guildId, out _);
-            }
-
-            if (_guildAudioClients.TryGetValue(guildId, out var audioClient))
-            {
-                _guildAudioClients.TryRemove(guildId, out _);
-            }
-
-            if (_guildcTokenSources.TryGetValue(guildId, out var cTokenSource))
-            {
-                _guildcTokenSources.TryRemove(guildId, out _);
+                // If stream id's match, delete guild from dictionary
+                if (entry.Value.StreamID == streamId)
+                {
+                    _guildData.TryRemove(entry.Key, out _);
+                }
             }
 
             return Task.CompletedTask;
