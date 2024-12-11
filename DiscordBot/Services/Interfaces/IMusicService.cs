@@ -6,9 +6,9 @@ namespace DiscordBot.Services.Interfaces
     {
         Task Play(SocketSlashCommand command);
 
-        Task SkipSong(ulong GuildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
+        Task SkipSong(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
 
-        Task ClearQueue(ulong GuildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
+        Task ClearQueue(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
 
     }
 }

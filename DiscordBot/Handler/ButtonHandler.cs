@@ -30,7 +30,7 @@ namespace DiscordBot.Handler
                         await _musicService.SkipSong(guildId, null, component);
                         break;
                     case "embed-clear-queue-button":
-                        
+                        await _musicService.ClearQueue(guildId, null, component);
                         break;
 
 

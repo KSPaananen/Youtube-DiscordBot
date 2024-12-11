@@ -7,9 +7,7 @@ using DiscordBot.Modules.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Collections.Concurrent;
-using System.ComponentModel;
 using System.Reflection;
-using System.Xml.Linq;
 
 namespace DiscordBot.Services
 {
@@ -45,7 +43,9 @@ namespace DiscordBot.Services
         }
 
         // ToDo
-        // - Buttons for embeds
+        // - Stop playing button?
+        // - Combine all ConcurrentDictionaries into one with Guild model
+        // - Disable Buttons from the last "now-playing" embed when song is over
 
         public async Task Play(SocketSlashCommand command)
         {
@@ -89,12 +89,12 @@ namespace DiscordBot.Services
                     {
                         IAudioClient connectedAudioClient = await user.VoiceChannel.ConnectAsync(true, false, false, false);
 
+                        // Attach methods to events
+                        connectedAudioClient.StreamDestroyed += StreamDestroyed;
+
                         // Get stream id and tie it to guild id
                         var streamId = connectedAudioClient.GetStreams().First().Key;
                         _guildStreamIds.TryAdd(streamId, (ulong)command.GuildId);
-
-                        // Attach methods to events
-                        connectedAudioClient.StreamDestroyed += StreamDestroyed;
 
                         if (connectedAudioClient == null || connectedAudioClient.ConnectionState == ConnectionState.Disconnected)
                         {
@@ -128,7 +128,7 @@ namespace DiscordBot.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message  != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
 
                 // Modify acknowledged command response with error details
                 await RespondToSlashCommand("error", command);
@@ -157,7 +157,7 @@ namespace DiscordBot.Services
                 switch (validObject)
                 {
                     case SocketSlashCommand:
-                        
+
                         // This method has been set in a way that its ready to skip songs with
                         // Slashcommands and SocketMessageComponents, but use SocketMessageComponents for now
 
@@ -184,16 +184,40 @@ namespace DiscordBot.Services
             return;
         }
 
-        public async Task ClearQueue(ulong GuildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
+        public async Task ClearQueue(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
         {
             // This method assumes that only either command or component has a value.
             // Both SocketSlashCommand and SocketMessageComponent cannot have a value at the same time
 
             try
             {
+                // Get guilds songlist
+                var songList = _guildQueues.TryGetValue(guildId, out var foundList) ? foundList : null;
 
+                if (songList == null)
+                {
+                    throw new Exception($"List<Song> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                }
 
+                // Tell discord we acknowledge the interaction
+                var validObject = await DeferInteractionAsync(command, component);
 
+                switch (validObject)
+                {
+                    case SocketSlashCommand:
+
+                        // This method has been set in a way that its ready to skip songs with
+                        // Slashcommands and SocketMessageComponents, but use SocketMessageComponents for now
+
+                        break;
+                    case SocketMessageComponent:
+                        // Replace the song list tied to guild, but include the currently playing song in the new list
+                        _guildQueues.TryUpdate(guildId, new List<Song> { songList[0] }, songList);
+
+                        await RespondToMessageComponents("queue-cleared", (SocketMessageComponent)validObject);
+
+                        break;
+                }
 
             }
             catch (Exception ex)
@@ -275,6 +299,7 @@ namespace DiscordBot.Services
             var songList = _guildQueues.TryGetValue(guildId, out var foundList) ? foundList : throw new Exception($"List<Song> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             var cTokenSource = _guildcTokenSources.TryGetValue(guildId, out var foundcTokenSource) ? foundcTokenSource : throw new Exception($"CancellationTokenSource was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
 
+            // Create task with cancellation token tied to guild id
             Task streamAudioTask = new Task(async () =>
             {
                 while (songList.Count > 0)
@@ -312,16 +337,24 @@ namespace DiscordBot.Services
                             // Flush the audio stream 
                             await outStream.FlushAsync();
 
-                            // Remove the song we just played from the song list
-                            songList.RemoveAt(0);
-
                             // Dispose stream to save resources
                             ffmpegStream.Dispose();
+
+                            // Get updated version of songList
+                            songList = _guildQueues.TryGetValue(guildId, out var foundList) ? foundList : throw new Exception($"List<Song> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+
+                            // Remove the song we just played from the song list
+                            songList.RemoveAt(0);
 
                             // Check if songlist is empty. Set firstSong to true if thats the case
                             if (songList.Count <= 0)
                             {
+                                // Set firstSong to true if songlist is empty
                                 _guildFirstSongs.TryUpdate(guildId, true, false);
+
+                                // Disable buttons from the last "now-playing" notification
+                                
+
                             }
 
                         }
@@ -459,7 +492,7 @@ namespace DiscordBot.Services
                         Url = null
                     };
                     embedBuilder.Title = songList[0].Title;
-                    embedBuilder.Url = songList[0].AudioUrl;
+                    embedBuilder.Url = songList[0].VideoUrl;
                     embedBuilder.Fields = new List<EmbedFieldBuilder>
                     {
                         new EmbedFieldBuilder
@@ -557,22 +590,20 @@ namespace DiscordBot.Services
                         Url = null
                     };
                     embedBuilder.Title = songList[0].Title;
-                    embedBuilder.Url = songList[0].AudioUrl;
+                    embedBuilder.Url = songList[0].VideoUrl;
                     embedBuilder.ThumbnailUrl = songList[0].ThumbnailUrl;
                     embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
 
                     await component.FollowupAsync(embeds: new[] { embedBuilder.Build() });
                     break;
-                case "cleared-queue":
+                case "queue-cleared":
                     embedBuilder.Author = new EmbedAuthorBuilder
                     {
                         IconUrl = null,
-                        Name = $"Stopped playing in {user.VoiceChannel}",
+                        Name = $"Queue cleared in {user.VoiceChannel}",
                         Url = null
                     };
-                    embedBuilder.Title = "placeholder";
-                    embedBuilder.Url = null;
-                    embedBuilder.ThumbnailUrl = null;
+                    embedBuilder.Description = $"Use /play to add more songs to the queue";
                     embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
 
                     await component.FollowupAsync(embeds: new[] { embedBuilder.Build() });
@@ -603,7 +634,7 @@ namespace DiscordBot.Services
                     var buttons = new List<IMessageComponent>
                         {
                             new ButtonBuilder()
-                                .WithLabel("Stop playing")
+                                .WithLabel("Clear queue")
                                 .WithStyle(ButtonStyle.Secondary)
                                 .WithCustomId("embed-clear-queue-button")
                                 .WithDisabled(true).Build(),
@@ -662,6 +693,6 @@ namespace DiscordBot.Services
             return Task.CompletedTask;
         }
 
-        
+
     }
 }
