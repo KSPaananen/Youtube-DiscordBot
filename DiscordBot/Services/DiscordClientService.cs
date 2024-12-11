@@ -61,20 +61,30 @@ namespace DiscordBot.Services
 
         private Task LogAsync(LogMessage log)
         {
+            if (log.Message == null && log.Exception.Message == null)
+            {
+                Console.WriteLine($"> [ERROR]: LogMessage.Message and LogMessage.Exception.Message were null in  {this.GetType().Name} : Play()");
+
+                return Task.CompletedTask;
+            }
+
             // 11.12.2024 Discord.Net keeps posting unknown OpCodes to console, ignore them
             // - Unknown OpCode (11)
             // - Unknown OpCode (18)
             // - Unknown OpCode (18)
 
-            if (!log.Message.Contains("OpCode") && log.Exception.Message.Contains("OpCode"))
+            if (log.Message != null)
             {
-                if (log.Exception != null)
-                {
-                    Console.WriteLine($"> [ERROR]: {log.Exception.Message}");
-                }
-                else
+                if (!log.Message.Contains("OpCode"))
                 {
                     Console.WriteLine($"> {log.Message}");
+                }
+            }
+            else if (log.Exception.Message != null)
+            {
+                if (!log.Exception.Message.Contains("OpCode"))
+                {
+                    Console.WriteLine($"> [ERROR]: {log.Exception.Message}");
                 }
             }
 
