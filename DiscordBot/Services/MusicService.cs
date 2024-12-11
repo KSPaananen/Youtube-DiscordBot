@@ -7,6 +7,7 @@ using DiscordBot.Modules.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Reflection;
 
 namespace DiscordBot.Services
@@ -36,7 +37,7 @@ namespace DiscordBot.Services
 
         // ToDo
         // - Stop playing button?
-        // - Disable Buttons from the last "now-playing" embed when song is over
+        // - Disable Buttons from the last "now-playing" embed when song is over, client disconnects
 
         public async Task Play(SocketSlashCommand command)
         {
@@ -48,7 +49,7 @@ namespace DiscordBot.Services
                 }
 
                 // Try finding an already existing guild in the dictionary
-                var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : new GuildData();
+                GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : new GuildData();
 
                 var voiceChannel = user.VoiceChannel;
 
@@ -155,7 +156,9 @@ namespace DiscordBot.Services
 
                         break;
                     case SocketMessageComponent:
-                        await DisableComponentsButtons((SocketMessageComponent)validObject);
+                        SocketMessageComponent validComponent = (SocketMessageComponent)validObject;
+
+                        await DisableButtons(guildId, "now-playing");
 
                         await RespondToMessageComponents("song-skipped", (SocketMessageComponent)validObject);
 
@@ -344,14 +347,12 @@ namespace DiscordBot.Services
                             // Set FirstSong to false
                             guildData.FirstSong = false;
 
-                            // Check if songlist is empty. Set firstSong to true if thats the case
+                            // Check if songlist is empty. Set firstSong to true and disable buttons from the "now-playing" message
                             if (queue.Count <= 0)
                             {
                                 guildData.FirstSong = true;
 
-                                // To Do:
-                                // - Disable buttons from last "now-playing" message
-
+                                await DisableButtons(guildId, "now-playing");
                             }
 
                             // Update guild data
@@ -442,7 +443,7 @@ namespace DiscordBot.Services
                 return;
             }
 
-            var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             List<SongData> queue = guildData.Queue;
 
             // Succesful responses are handled in this switch tree
@@ -548,16 +549,21 @@ namespace DiscordBot.Services
                     // - firstSong is false
                     if (queue.Count > 1 || guildData.FirstSong == false)
                     {
-                        await command.Channel.SendMessageAsync(embeds: [embedBuilder.Build()], components: componentBuilder.WithRows(new[] { rowBuilder }).Build());
+                        // Save message to guild data
+                        guildData.UserMessage = (IUserMessage)await command.Channel.SendMessageAsync(embeds: [embedBuilder.Build()], components: componentBuilder.WithRows(new[] { rowBuilder }).Build());
                     }
                     else
                     {
-                        await command.ModifyOriginalResponseAsync(msg =>
+                        // Save message to guild data
+                        guildData.UserMessage = (IUserMessage)await command.ModifyOriginalResponseAsync(msg =>
                         {
                             msg.Embeds = new[] { embedBuilder.Build() };
                             msg.Components = componentBuilder.WithRows(new[] { rowBuilder }).Build();
                         });
                     }
+
+                    // Update guild
+                    _guildData.TryUpdate(guildId, guildData, guildData);
                     break;
                 default:
 
@@ -578,7 +584,7 @@ namespace DiscordBot.Services
             var embedBuilder = new EmbedBuilder();
             var componentBuilder = new ComponentBuilder();
 
-            var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             List<SongData> queue = guildData.Queue;
 
             switch (type)
@@ -617,21 +623,18 @@ namespace DiscordBot.Services
             return;
         }
 
-        private async Task DisableComponentsButtons(SocketMessageComponent component)
+        private async Task DisableButtons(ulong guildId, string id)
         {
-            if (component == null)
+            if (!_guildData.TryGetValue(guildId, out var guildData) || guildData.UserMessage is not IUserMessage message)
             {
                 throw new Exception($"SocketMessageComponent was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
             var componentBuilder = new ComponentBuilder();
 
-            switch (component.Data.CustomId)
+            switch (id)
             {
-                case "embed-skip-button" or "embed-stop-button":
-                    // Get components previous message and create new buttons to replace its old ones
-                    var originalEmbeds = component.Message.Embeds.First();
-
+                case "now-playing":
                     var buttons = new List<IMessageComponent>
                     {
                         new ButtonBuilder()
@@ -650,20 +653,21 @@ namespace DiscordBot.Services
                     var rowBuilder = new ActionRowBuilder()
                             .WithComponents(buttons);
 
-                    await component.ModifyOriginalResponseAsync(msg =>
+                    // Tranform message.IEmbed collection into Embed[]
+                    var embeds = message.Embeds.Select(embed => embed as Embed).Where(e => e != null).ToArray();
+
+                    await message.ModifyAsync(msg =>
                     {
-                        msg.Embeds = new[] { originalEmbeds };
+                        msg.Embeds = embeds;
                         msg.Components = componentBuilder.WithRows(new[] { rowBuilder }).Build();
                     });
-                    break;
-                default:
                     break;
             }
 
             return;
         }
 
-        private Task StreamDestroyed(ulong streamId)
+        private async Task StreamDestroyed(ulong streamId)
         {
             // ToDo:
             // - Figure out a more resource efficient solution here
@@ -674,11 +678,14 @@ namespace DiscordBot.Services
                 // If stream id's match, delete guild from dictionary
                 if (entry.Value.StreamID == streamId)
                 {
+                    // Disable buttons from last "now-playing" before deleting
+                    await DisableButtons(entry.Key, "now-playing");
+
                     _guildData.TryRemove(entry.Key, out _);
                 }
             }
 
-            return Task.CompletedTask;
+            return;
         }
 
 
