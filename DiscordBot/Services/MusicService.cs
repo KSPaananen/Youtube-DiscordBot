@@ -7,7 +7,6 @@ using DiscordBot.Modules.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Collections.Concurrent;
-using System.ComponentModel;
 using System.Reflection;
 
 namespace DiscordBot.Services
@@ -35,9 +34,11 @@ namespace DiscordBot.Services
             _discordLink = _configurationRepository.GetDiscordLink();
         }
 
-        // ToDo
-        // - Stop playing button?
-        // - Disable Buttons from the last "now-playing" embed when song is over, client disconnects
+        // ToDo:
+        // - Ensure that song skipper is connected to the same voice channel
+        // - Re-evaluate if we should be replying or sending a separate message on some of the feedback
+        // - Skip songs with slashcommand
+        // - Clear queue with slashcommand
 
         public async Task Play(SocketSlashCommand command)
         {
@@ -340,7 +341,7 @@ namespace DiscordBot.Services
                             // Get updated version of queue
                             var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                             queue = guildData.Queue;
-                            
+
                             // Remove the song we just played from the queue
                             queue.RemoveAt(0);
 

@@ -10,24 +10,26 @@ namespace DiscordBot.Handler
 
         }
 
-        public Task HandleUserBannedAsync(SocketUser user, SocketGuild server)
+        public Task HandleUserBanned(SocketUser user, SocketGuild server)
         {
             return Task.CompletedTask;
         }
 
-        public Task HandleUserJoinedAsync(SocketGuildUser user)
+        public Task HandleUserJoined(SocketGuildUser user)
         {
             return Task.CompletedTask;
         }
 
-        public Task HandleUserLeftAsync(SocketGuild server, SocketUser user)
+        public Task HandleUserLeft(SocketGuild server, SocketUser user)
         {
             return Task.CompletedTask;
         }
 
-        public Task HandleUserUnBannedAsync(SocketUser user, SocketGuild server)
+        public Task HandleUserUnBanned(SocketUser user, SocketGuild server)
         {
             return Task.CompletedTask;
         }
+
+
     }
 }

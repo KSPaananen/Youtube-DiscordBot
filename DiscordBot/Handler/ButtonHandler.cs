@@ -13,7 +13,7 @@ namespace DiscordBot.Handler
             _musicService = musicService ?? throw new NullReferenceException(nameof(musicService));
         }
 
-        public Task HandleButtonExecutedAsync(SocketMessageComponent component)
+        public Task HandleButtonExecuted(SocketMessageComponent component)
         {
             if (component == null || component.GuildId is not ulong guildId)
             {

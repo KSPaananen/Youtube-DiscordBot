@@ -46,8 +46,7 @@ namespace DiscordBot.Handler
                 }
                 catch (Exception ex)
                 {
-                    // Print ex.message to channel
-                    Console.WriteLine(ex.Message ?? $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                    Console.WriteLine(ex.Message != null ? $"[ERROR]: {ex.Message}" : $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
             });
 
@@ -66,6 +65,16 @@ namespace DiscordBot.Handler
             globalPlayCommand.WithDescription("Play music in a voicechat");
             globalPlayCommand.AddOption("query", ApplicationCommandOptionType.String, "Search music with a query or provide a link to the song", true);
             globalAppCommandsList.Add(globalPlayCommand.Build());
+
+            var globalSkipCommand = new SlashCommandBuilder();
+            globalSkipCommand.WithName("skip");
+            globalSkipCommand.WithDescription("Skips the currently playing song");
+            globalAppCommandsList.Add(globalSkipCommand.Build());
+
+            var globalClearQueueCommand = new SlashCommandBuilder();
+            globalClearQueueCommand.WithName("clear-queue");
+            globalClearQueueCommand.WithDescription("Clears the queue");
+            globalAppCommandsList.Add(globalClearQueueCommand.Build());
 
             var requestOptions = new RequestOptions()
             {

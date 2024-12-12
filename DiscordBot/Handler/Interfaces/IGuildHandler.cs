@@ -4,7 +4,7 @@ namespace DiscordBot.Handler.Interfaces
 {
     public interface IGuildHandler
     {
-        Task HandleJoinGuildAsync(SocketGuild guild);
+        Task HandleJoinGuild(SocketGuild guild);
 
     }
 }

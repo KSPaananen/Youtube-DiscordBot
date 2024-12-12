@@ -5,13 +5,13 @@ namespace DiscordBot.Handler.Interfaces
 {
     public interface IMessageHandler
     {
-        Task HandleMessageCommandExecutedAsync(SocketMessageCommand command);
+        Task HandleMessageCommandExecuted(SocketMessageCommand command);
 
-        Task HandleMessageReceivedAsync(SocketMessage message);
+        Task HandleMessageReceived(SocketMessage message);
 
-        Task HandleMessageDeletedAsync(Cacheable<IMessage, ulong> cachedMessage, Cacheable<IMessageChannel, ulong> cachedChannel);
+        Task HandleMessageDeleted(Cacheable<IMessage, ulong> cachedMessage, Cacheable<IMessageChannel, ulong> cachedChannel);
 
-        Task HandleMessageUpdatedAsync(Cacheable<IMessage, ulong> cachedMessage, SocketMessage message, ISocketMessageChannel channel);
+        Task HandleMessageUpdated(Cacheable<IMessage, ulong> cachedMessage, SocketMessage message, ISocketMessageChannel channel);
 
     }
 }

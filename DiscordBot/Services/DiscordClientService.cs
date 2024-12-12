@@ -37,23 +37,23 @@ namespace DiscordBot.Services
             // Attach methods to clients events
             _client.SlashCommandExecuted += _slashCommandHandler.HandleSlashCommand;
 
-            _client.ReactionAdded += _reactionHandler.HandleReactionAddedAsync;
+            _client.ReactionAdded += _reactionHandler.HandleReactionAdded;
             _client.ReactionRemoved += _reactionHandler.HandleReactionRemovedAsync;
             _client.ReactionsCleared += _reactionHandler.HandleReactionsClearedAsync;
 
-            _client.UserJoined += _userHandler.HandleUserJoinedAsync;
-            _client.UserLeft += _userHandler.HandleUserLeftAsync;
-            _client.UserBanned += _userHandler.HandleUserBannedAsync;
-            _client.UserUnbanned += _userHandler.HandleUserUnBannedAsync;
+            _client.UserJoined += _userHandler.HandleUserJoined;
+            _client.UserLeft += _userHandler.HandleUserLeft;
+            _client.UserBanned += _userHandler.HandleUserBanned;
+            _client.UserUnbanned += _userHandler.HandleUserUnBanned;
 
-            _client.ButtonExecuted += _buttonHandler.HandleButtonExecutedAsync;
+            _client.ButtonExecuted += _buttonHandler.HandleButtonExecuted;
 
-            _client.MessageCommandExecuted += _messageHandler.HandleMessageCommandExecutedAsync;
-            _client.MessageReceived += _messageHandler.HandleMessageReceivedAsync;
-            _client.MessageDeleted += _messageHandler.HandleMessageDeletedAsync;
-            _client.MessageUpdated += _messageHandler.HandleMessageUpdatedAsync;
+            _client.MessageCommandExecuted += _messageHandler.HandleMessageCommandExecuted;
+            _client.MessageReceived += _messageHandler.HandleMessageReceived;
+            _client.MessageDeleted += _messageHandler.HandleMessageDeleted;
+            _client.MessageUpdated += _messageHandler.HandleMessageUpdated;
 
-            _client.JoinedGuild += _guildHandler.HandleJoinGuildAsync;
+            _client.JoinedGuild += _guildHandler.HandleJoinGuild;
 
             _client.Ready += ClientReady;
             _client.Log += LogAsync;

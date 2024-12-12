@@ -4,7 +4,7 @@ namespace DiscordBot.Handler.Interfaces
 {
     public interface IButtonHandler
     {
-        Task HandleButtonExecutedAsync(SocketMessageComponent component);
+        Task HandleButtonExecuted(SocketMessageComponent component);
 
     }
 }

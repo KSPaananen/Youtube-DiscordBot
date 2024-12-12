@@ -1,37 +1,42 @@
 ﻿using Discord.WebSocket;
 using DiscordBot.Handler.Interfaces;
+using DiscordBot.Services.Interfaces;
 using System.Reflection;
 
 namespace DiscordBot.Handler
 {
     public class GuildHandler : IGuildHandler
     {
-        private SocketGuildChannel? _systemChannel;
+        private IMessageService _messageService;
 
-        public GuildHandler()
+        public GuildHandler(IMessageService messageService)
         {
-
+            _messageService = messageService ?? throw new NullReferenceException(nameof(messageService));
         }
 
-        public async Task HandleJoinGuildAsync(SocketGuild guild)
+        public Task HandleJoinGuild(SocketGuild guild)
         {
-            if (guild is not SocketGuild || guild.SystemChannel is not SocketTextChannel systemChannel)
+            if (guild is not SocketGuild)
             {
-                throw new Exception($"> [ERROR]: SocketGuild was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                Console.WriteLine($"SocketGuild was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+
+                return Task.CompletedTask;
             }
 
-            _systemChannel = systemChannel;
+            // Run inside a task to avoid "handler is blocking the gateway task" errors
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _messageService.SendJoinedGuildMessage(guild);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message != null ? $"[ERROR]: {ex.Message}" : $"[ERROR]: Something went wrong in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                }
+            });
 
-            // Send guild join message to the first channel
-            await systemChannel.SendMessageAsync("testing");
-
-
-
-
-
-
-
-            return;
+            return Task.CompletedTask;
         }
 
 

@@ -11,22 +11,22 @@ namespace DiscordBot.Handler
 
         }
 
-        public Task HandleMessageCommandExecutedAsync(SocketMessageCommand command)
+        public Task HandleMessageCommandExecuted(SocketMessageCommand command)
         {
             return Task.CompletedTask;
         }
 
-        public Task HandleMessageDeletedAsync(Cacheable<IMessage, ulong> cachedMessage, Cacheable<IMessageChannel, ulong> cachedChannel)
+        public Task HandleMessageDeleted(Cacheable<IMessage, ulong> cachedMessage, Cacheable<IMessageChannel, ulong> cachedChannel)
         {
             return Task.CompletedTask;
         }
 
-        public Task HandleMessageReceivedAsync(SocketMessage message)
+        public Task HandleMessageReceived(SocketMessage message)
         {
             return Task.CompletedTask;
         }
 
-        public Task HandleMessageUpdatedAsync(Cacheable<IMessage, ulong> cachedMessage, SocketMessage message, ISocketMessageChannel channel)
+        public Task HandleMessageUpdated(Cacheable<IMessage, ulong> cachedMessage, SocketMessage message, ISocketMessageChannel channel)
         {
             return Task.CompletedTask;
         }
