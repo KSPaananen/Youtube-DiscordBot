@@ -24,6 +24,8 @@ namespace DiscordBot.Services
         // ToDo:
         // - Further refactoring
         // - Tidy up response building etc
+        // - Playlists
+        // - Autodisconnect after queue empties
         
         public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
@@ -79,7 +81,7 @@ namespace DiscordBot.Services
                     }
                     else if (guildData.AudioClient == null || guildData.AudioClient.ConnectionState == ConnectionState.Disconnected)
                     {
-                        guildData.AudioClient = await user.VoiceChannel.ConnectAsync(true, false, false, false);
+                        guildData.AudioClient = await user.VoiceChannel.ConnectAsync(false, false, false, false);
 
                         // Attach methods to events
                         guildData.AudioClient.StreamDestroyed += StreamDestroyed;
