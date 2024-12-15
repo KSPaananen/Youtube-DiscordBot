@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using DiscordBot.Extensions;
+using DiscordBot.Models;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 
@@ -65,6 +66,6 @@ namespace DiscordBot.Services
             return;
         }
 
-
+        
     }
 }
