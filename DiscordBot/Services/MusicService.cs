@@ -39,10 +39,6 @@ namespace DiscordBot.Services
             _discordLink = _configurationRepository.GetDiscordLink();
         }
 
-        // ToDo:
-        // - Ensure that song skipper is connected to the same voice channel
-        // - Refactor response and message constructing methods
-
         public async Task Play(SocketSlashCommand command)
         {
             try
@@ -130,6 +126,7 @@ namespace DiscordBot.Services
                 await RespondToSlashCommand("error", command);
             }
 
+            return;
         }
 
         public async Task SkipSong(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
@@ -146,7 +143,7 @@ namespace DiscordBot.Services
                     throw new Exception($"CancellationTokenSource was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
 
-                // Get the valid object parameter
+                // Get the valid object from parameters
                 var validObject = GetValidInteractionObject(command, component).Result;
 
                 switch (validObject)
@@ -177,7 +174,6 @@ namespace DiscordBot.Services
                             await validComponent.DeferAsync();
 
                             await SendMessageAsync(guildId, "song-skipped", componentUser);
-
                         }
                         break;
                 }
@@ -188,11 +184,15 @@ namespace DiscordBot.Services
                 guildData.cTokenSource.Cancel();
 
                 // Song list skipping etc is handled at StreamAudio() so no need to anything else here
+
+                return;
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : SkipSong()");
             }
+
+            return;
         }
 
         public async Task ClearQueue(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
@@ -204,7 +204,7 @@ namespace DiscordBot.Services
             {
                 GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
 
-                // Get the valid object parameter
+                // Get the valid object from parameters
                 var validObject = GetValidInteractionObject(command, component).Result;
 
                 switch (validObject)
@@ -223,7 +223,6 @@ namespace DiscordBot.Services
                             // Replace the song queue tied to guild, but include the currently playing song in the new queue
                             guildData.Queue = new List<SongData>() { guildData.Queue[0] };
 
-                            // Update guild data
                             _guildData.TryUpdate(guildId, foundGuild, foundGuild);
 
                             await RespondToSlashCommand("queue-cleared", validCommand);
@@ -243,15 +242,14 @@ namespace DiscordBot.Services
                             // Replace the song queue tied to guild, but include the currently playing song in the new queue
                             guildData.Queue = new List<SongData>() { guildData.Queue[0] };
 
-                            // Update guild data
                             _guildData.TryUpdate(guildId, foundGuild, foundGuild);
 
                             await SendMessageAsync(guildId, "queue-cleared", componentUser);
                         }
-
                         break;
                 }
 
+                return;
             }
             catch (Exception ex)
             {
@@ -269,10 +267,8 @@ namespace DiscordBot.Services
             {
                 return Task.FromResult<object>(component);
             }
-            else
-            {
-                throw new Exception($"SocketSlashCommand and SocketMessageComponent were null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
-            }
+
+            throw new Exception($"SocketSlashCommand and SocketMessageComponent were null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
         }
 
         private CancellationTokenSource UpdateOrAddCancellationTokenSource(ulong guildId)
