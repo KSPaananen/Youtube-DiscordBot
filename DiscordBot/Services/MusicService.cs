@@ -24,7 +24,7 @@ namespace DiscordBot.Services
         // ToDo:
         // - Further refactoring
         // - Tidy up response building etc
-
+        
         public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
             _client = client ?? throw new NullReferenceException(nameof(client));
@@ -302,7 +302,6 @@ namespace DiscordBot.Services
 
                 foundGuild.Queue.Add(song);
 
-                // Update guild data
                 _guildData.TryUpdate(guildId, foundGuild, foundGuild);
 
                 // Don't respond with "user-requested" if queue count is 1
@@ -310,7 +309,6 @@ namespace DiscordBot.Services
                 {
                     await SendResponseAsync(guildId, "user-requested", command);
                 }
-
             }
 
             return;
@@ -374,18 +372,19 @@ namespace DiscordBot.Services
                             var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                             queue = guildData.Queue;
 
+                            // Set first song boolean to false to influense responding behaviour
+                            guildData.FirstSong = false;
+
                             // Remove the song we just played from the queue
                             queue.RemoveAt(0);
 
-                            // Set FirstSong to false
-                            guildData.FirstSong = false;
+                            // Disable buttons of the just played songs now-playing notification
+                            await DisableButtons(guildId, "now-playing");
 
-                            // Check if songlist is empty. Set firstSong to true and disable buttons from the "now-playing" message
+                            // Check if songlist is empty. Set firstSong to true if its empty
                             if (queue.Count <= 0)
                             {
                                 guildData.FirstSong = true;
-
-                                await DisableButtons(guildId, "now-playing");
                             }
 
                             // Update guild data
@@ -437,7 +436,7 @@ namespace DiscordBot.Services
                             embedBuilder.Title = queue[0].Title;
                             embedBuilder.Url = queue[0].VideoUrl;
                             embedBuilder.ThumbnailUrl = queue[0].ThumbnailUrl;
-                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.GlobalName, IconUrl = commandUser.GetAvatarUrl() });
+                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.Guild.Name, IconUrl = commandUser.Guild.IconUrl });
 
                             await validCommand.ModifyOriginalResponseAsync(msg =>
                             {
@@ -452,7 +451,7 @@ namespace DiscordBot.Services
                                 Url = null
                             };
                             embedBuilder.Description = $"Use /play to add more songs to the queue";
-                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.GlobalName, IconUrl = commandUser.GetAvatarUrl() });
+                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.Guild.Name, IconUrl = commandUser.Guild.IconUrl });
 
                             await validCommand.ModifyOriginalResponseAsync(msg =>
                             {
@@ -462,14 +461,14 @@ namespace DiscordBot.Services
                         case "user-requested":
                             embedBuilder.Author = new EmbedAuthorBuilder
                             {
-                                IconUrl = "",
+                                IconUrl = null,
                                 Name = $"Added a new song to the queue",
-                                Url = ""
+                                Url = null
                             };
                             embedBuilder.Title = queue[queue.Count - 1].Title;
                             embedBuilder.Url = queue[queue.Count - 1].VideoUrl;
                             embedBuilder.ThumbnailUrl = queue[queue.Count - 1].ThumbnailUrl;
-                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.GlobalName, IconUrl = commandUser.GetAvatarUrl() });
+                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.Guild.Name, IconUrl = commandUser.Guild.IconUrl });
 
                             if (queue.Count > 2)
                             {
@@ -497,11 +496,10 @@ namespace DiscordBot.Services
                             });
                             break;
                         case "now-playing":
-                            // Configure embedBuilder
                             embedBuilder.Author = new EmbedAuthorBuilder
                             {
                                 IconUrl = null,
-                                Name = commandUser.VoiceChannel == null ? "Now playing" : $"Now playing in {commandUser.VoiceChannel}",
+                                Name = $"Now playing in {commandUser.VoiceChannel}",
                                 Url = null
                             };
                             embedBuilder.Title = queue[0].Title;
@@ -522,7 +520,7 @@ namespace DiscordBot.Services
                                 }
                             };
                             embedBuilder.ImageUrl = queue[0].ThumbnailUrl;
-                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.GlobalName, IconUrl = commandUser.GetAvatarUrl() });
+                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.Guild.Name, IconUrl = commandUser.Guild.IconUrl });
 
                             // Add "Next song" field if we have more than 1 song in queue
                             if (queue.Count > 1)
@@ -535,7 +533,6 @@ namespace DiscordBot.Services
                                 });
                             };
 
-                            // Configure components
                             var buttons = new List<IMessageComponent>
                             {
                                 new ButtonBuilder()
@@ -595,7 +592,7 @@ namespace DiscordBot.Services
                             embedBuilder.Title = queue[0].Title;
                             embedBuilder.Url = queue[0].VideoUrl;
                             embedBuilder.ThumbnailUrl = queue[0].ThumbnailUrl;
-                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.GlobalName, IconUrl = componentUser.GetAvatarUrl() });
+                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.Guild.Name, IconUrl = componentUser.Guild.IconUrl });
 
                             await validComponent.ModifyOriginalResponseAsync(msg =>
                             {
@@ -610,7 +607,7 @@ namespace DiscordBot.Services
                                 Url = null
                             };
                             embedBuilder.Description = $"Use /play to add more songs to the queue";
-                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.GlobalName, IconUrl = componentUser.GetAvatarUrl() });
+                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.Guild.Name, IconUrl = componentUser.Guild.IconUrl });
 
                             await validComponent.ModifyOriginalResponseAsync(msg =>
                             {
@@ -635,7 +632,7 @@ namespace DiscordBot.Services
             switch (validObject)
             {
                 case SocketSlashCommand:
-                    if (validObject is not SocketSlashCommand validCommand)
+                    if (validObject is not SocketSlashCommand validCommand || validCommand.User is not SocketGuildUser commandUser)
                     {
                         throw new Exception($"SocketSlashCommand was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                     }
@@ -664,7 +661,7 @@ namespace DiscordBot.Services
                             break;
                     }
 
-                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = validCommand.User.GlobalName, IconUrl = validCommand.User.GetAvatarUrl() });
+                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.Guild.Name, IconUrl = commandUser.Guild.IconUrl });
 
                     try
                     {
@@ -679,7 +676,7 @@ namespace DiscordBot.Services
                     }
                     break;
                 case SocketMessageComponent:
-                    if (validObject is not SocketMessageComponent validComponent)
+                    if (validObject is not SocketMessageComponent validComponent || validComponent.User is not SocketGuildUser componentUser)
                     {
                         throw new Exception($"SocketMessageComponent was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                     }
@@ -700,7 +697,7 @@ namespace DiscordBot.Services
                             break;
                     }
 
-                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = validComponent.User.GlobalName, IconUrl = validComponent.User.GetAvatarUrl() });
+                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.Guild.Name, IconUrl = componentUser.Guild.IconUrl });
 
                     await validComponent.RespondAsync(embeds: new[] { embedBuilder.Build() }, ephemeral: true);
                     break;

@@ -1,7 +1,6 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using DiscordBot.Extensions;
-using DiscordBot.Models;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 
@@ -43,13 +42,13 @@ namespace DiscordBot.Services
                 {
                     Name = "Commands" ,
                     Value = $"- `/play` allows you to play music with search queries or links" +
-                            $"\n\n - /skip skips the currently playing song" + 
+                            $"\n\n - /skip skips the currently playing song" +
                             $"\n\n - /clear-queue skips the currently playing song",
                     IsInline = false
                 },
             };
 
-            if (_discordLink  != "")
+            if (_discordLink != "")
             {
                 embedBuilder.Fields.Add(new EmbedFieldBuilder
                 {
@@ -66,6 +65,6 @@ namespace DiscordBot.Services
             return;
         }
 
-        
+
     }
 }
