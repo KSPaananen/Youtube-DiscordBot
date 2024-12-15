@@ -26,7 +26,7 @@ namespace DiscordBot.Handler
 
         public Task HandleSlashCommand(SocketSlashCommand command)
         {
-            if (command == null || command.CommandName == "" || command.User.IsBot)
+            if (command == null || command.CommandName == "" || command.GuildId is not ulong guildId)
             {
                 return Task.CompletedTask;
             }
@@ -40,7 +40,12 @@ namespace DiscordBot.Handler
                     {
                         case "play":
                             await _musicService.Play(command);
-
+                            break;
+                        case "skip":
+                            await _musicService.SkipSong(guildId, command);
+                            break;
+                        case "clear-queue":
+                            await _musicService.ClearQueue(guildId, command);
                             break;
                     }
                 }

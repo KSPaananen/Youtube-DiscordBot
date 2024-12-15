@@ -36,9 +36,7 @@ namespace DiscordBot.Services
 
         // ToDo:
         // - Ensure that song skipper is connected to the same voice channel
-        // - Re-evaluate if we should be replying or sending a separate message on some of the feedback
-        // - Skip songs with slashcommand
-        // - Clear queue with slashcommand
+        // - Refactor response and message constructing methods
 
         public async Task Play(SocketSlashCommand command)
         {
@@ -148,21 +146,21 @@ namespace DiscordBot.Services
                 // Tell discord that we acknowledge the interaction
                 var validObject = await DeferInteractionAsync(command, component);
 
+                await DisableButtons(guildId, "now-playing");
+
                 switch (validObject)
                 {
                     case SocketSlashCommand:
-
-                        // This method has been set in a way that its ready to skip songs with
-                        // Slashcommands and SocketMessageComponents, but use SocketMessageComponents for now
-
+                        if (validObject is SocketSlashCommand validCommand && validCommand.User is IGuildUser commandUser)
+                        {
+                            await RespondToSlashCommand("song-skipped", validCommand);
+                        }
                         break;
                     case SocketMessageComponent:
-                        SocketMessageComponent validComponent = (SocketMessageComponent)validObject;
-
-                        await DisableButtons(guildId, "now-playing");
-
-                        await RespondToMessageComponents("song-skipped", (SocketMessageComponent)validObject);
-
+                        if (validObject is SocketMessageComponent validComponent && validComponent.User is IGuildUser componentUser)
+                        {
+                            await SendMessageAsync(guildId, "song-skipped", componentUser);
+                        }
                         break;
                 }
 
@@ -196,19 +194,29 @@ namespace DiscordBot.Services
                 switch (validObject)
                 {
                     case SocketSlashCommand:
+                        if (validObject is SocketSlashCommand validCommand && validCommand.User is IGuildUser commandUser)
+                        {
+                            // Replace the song queue tied to guild, but include the currently playing song in the new queue
+                            guildData.Queue = new List<SongData>() { guildData.Queue[0] };
 
-                        // This method has been set in a way that its ready to skip songs with
-                        // Slashcommands and SocketMessageComponents, but use SocketMessageComponents for now
+                            // Update guild data
+                            _guildData.TryUpdate(guildId, foundGuild, foundGuild);
 
+
+                            await RespondToSlashCommand("queue-cleared", validCommand);
+                        }
                         break;
                     case SocketMessageComponent:
-                        // Replace the song queue tied to guild, but include the currently playing song in the new queue
-                        guildData.Queue = new List<SongData>() { guildData.Queue[0] };
+                        if (validObject is SocketMessageComponent validComponent && validComponent.User is IGuildUser componentUser)
+                        {
+                            // Replace the song queue tied to guild, but include the currently playing song in the new queue
+                            guildData.Queue = new List<SongData>() { guildData.Queue[0] };
 
-                        // Update guild data
-                        _guildData.TryUpdate(guildId, foundGuild, foundGuild);
+                            // Update guild data
+                            _guildData.TryUpdate(guildId, foundGuild, foundGuild);
 
-                        await RespondToMessageComponents("queue-cleared", (SocketMessageComponent)validObject);
+                            await SendMessageAsync(guildId, "queue-cleared", componentUser);
+                        }
 
                         break;
                 }
@@ -450,6 +458,38 @@ namespace DiscordBot.Services
             // Succesful responses are handled in this switch tree
             switch (type)
             {
+                case "song-skipped":
+                    embedBuilder.Author = new EmbedAuthorBuilder
+                    {
+                        IconUrl = null,
+                        Name = $"Song skipped in {user.VoiceChannel}",
+                        Url = null
+                    };
+                    embedBuilder.Title = queue[0].Title;
+                    embedBuilder.Url = queue[0].VideoUrl;
+                    embedBuilder.ThumbnailUrl = queue[0].ThumbnailUrl;
+                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
+
+                    await command.ModifyOriginalResponseAsync(msg =>
+                    {
+                        msg.Embeds = new[] { embedBuilder.Build() };
+                    });
+                    break;
+                case "queue-cleared":
+                    embedBuilder.Author = new EmbedAuthorBuilder
+                    {
+                        IconUrl = null,
+                        Name = $"Queue cleared in {user.VoiceChannel}",
+                        Url = null
+                    };
+                    embedBuilder.Description = $"Use /play to add more songs to the queue";
+                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
+
+                    await command.ModifyOriginalResponseAsync(msg =>
+                    {
+                        msg.Embeds = new[] { embedBuilder.Build() };
+                    });
+                    break;
                 case "user-requested":
                     embedBuilder.Author = new EmbedAuthorBuilder
                     {
@@ -575,17 +615,16 @@ namespace DiscordBot.Services
             return;
         }
 
-        private async Task RespondToMessageComponents(string type, SocketMessageComponent component)
+        private async Task SendMessageAsync(ulong guildId, string type, IGuildUser user)
         {
-            if (component == null || component.GuildId is not ulong guildId || component.User is not IGuildUser user)
+            if (_guildData.TryGetValue(guildId, out var guildData) == false || guildData.UserMessage is not IUserMessage message)
             {
-                throw new Exception($"SocketMessageComponent was null in{this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
             var embedBuilder = new EmbedBuilder();
             var componentBuilder = new ComponentBuilder();
 
-            GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             List<SongData> queue = guildData.Queue;
 
             switch (type)
@@ -602,7 +641,7 @@ namespace DiscordBot.Services
                     embedBuilder.ThumbnailUrl = queue[0].ThumbnailUrl;
                     embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
 
-                    await component.FollowupAsync(embeds: new[] { embedBuilder.Build() });
+                    await message.Channel.SendMessageAsync(embeds: new[] { embedBuilder.Build() });
                     break;
                 case "queue-cleared":
                     embedBuilder.Author = new EmbedAuthorBuilder
@@ -614,7 +653,7 @@ namespace DiscordBot.Services
                     embedBuilder.Description = $"Use /play to add more songs to the queue";
                     embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.GlobalName, IconUrl = user.GetAvatarUrl() });
 
-                    await component.FollowupAsync(embeds: new[] { embedBuilder.Build() });
+                    await message.Channel.SendMessageAsync(embeds: new[] { embedBuilder.Build() });
                     break;
                 default:
 
