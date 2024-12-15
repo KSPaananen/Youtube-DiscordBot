@@ -13,24 +13,29 @@ namespace DiscordBot.Services
 {
     public class MusicService : IMusicService
     {
-        private IConfigurationRepository _configurationRepository;
+        private DiscordSocketClient _client;
 
+        private IConfigurationRepository _configurationRepository;
         private IYtDlp _ytDlp;
         private IFFmpeg _ffmpeg;
 
         private ConcurrentDictionary<ulong, GuildData> _guildData;
-
         private string _discordLink;
 
-        public MusicService(IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
-        {
-            _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(configurationRepository));
+        // ToDo:
+        // - Rework responses
+        // - Refactor response and message constructing methods
+        // - Refactor code overall
 
+        public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
+        {
+            _client = client ?? throw new NullReferenceException(nameof(client));
+
+            _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(configurationRepository));
             _ytDlp = ytDlp ?? throw new NullReferenceException(nameof(ytDlp));
             _ffmpeg = ffmpeg ?? throw new NullReferenceException(nameof(ffmpeg));
 
             _guildData = new();
-
             _discordLink = _configurationRepository.GetDiscordLink();
         }
 
@@ -69,7 +74,7 @@ namespace DiscordBot.Services
                     else if (guildData.AudioClient != null && guildData.AudioClient.ConnectionState == ConnectionState.Connected)
                     {
                         // Tell discord we have received interaction
-                        await DeferInteractionAsync(command);
+                        await command.DeferAsync();
 
                         // Add songs to queue
                         await AppendQueryToQueueAsync(command);
@@ -99,7 +104,7 @@ namespace DiscordBot.Services
                         _guildData.AddOrUpdate(guildId, guildData, (key, oldValue) => oldValue);
 
                         // Tell discord we have received interaction
-                        await DeferInteractionAsync(command);
+                        await command.DeferAsync();
 
                         // Add songs to queue
                         await AppendQueryToQueueAsync(command);
@@ -134,48 +139,60 @@ namespace DiscordBot.Services
 
             try
             {
-                // Get guilds token source and request cancel with the token source
                 GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
-                CancellationTokenSource cTokenSource = guildData.cTokenSource;
 
-                if (cTokenSource == null)
+                if (guildData.cTokenSource == null)
                 {
                     throw new Exception($"CancellationTokenSource was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
 
-                // Tell discord that we acknowledge the interaction
-                var validObject = await DeferInteractionAsync(command, component);
-
-                await DisableButtons(guildId, "now-playing");
+                // Get the valid object parameter
+                var validObject = GetValidInteractionObject(command, component).Result;
 
                 switch (validObject)
                 {
                     case SocketSlashCommand:
-                        if (validObject is SocketSlashCommand validCommand && validCommand.User is IGuildUser commandUser)
+                        if (validObject is SocketSlashCommand validCommand && validCommand.User is SocketGuildUser commandUser && commandUser.VoiceChannel.Users != null)
                         {
+                            // Check if user and bot are in the same voice channel
+                            if (!commandUser.VoiceChannel.Users.Any(u => u.Id == _client.CurrentUser.Id))
+                            {
+                                // Respond with error
+                            }
+
+                            await validCommand.DeferAsync();
+
                             await RespondToSlashCommand("song-skipped", validCommand);
                         }
                         break;
                     case SocketMessageComponent:
-                        if (validObject is SocketMessageComponent validComponent && validComponent.User is IGuildUser componentUser)
+                        if (validObject is SocketMessageComponent validComponent && validComponent.User is SocketGuildUser componentUser && componentUser.VoiceChannel.Users != null)
                         {
+                            // Check if user and bot are in the same voice channel
+                            if (!componentUser.VoiceChannel.Users.Any(u => u.Id == _client.CurrentUser.Id))
+                            {
+                                // Respond with error
+                            }
+
+                            await validComponent.DeferAsync();
+
                             await SendMessageAsync(guildId, "song-skipped", componentUser);
+
                         }
                         break;
                 }
 
+                await DisableButtons(guildId, "now-playing");
+
                 // Cancel last or you will end up wth a race condition
-                cTokenSource.Cancel();
+                guildData.cTokenSource.Cancel();
 
                 // Song list skipping etc is handled at StreamAudio() so no need to anything else here
-
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : SkipSong()");
             }
-
-            return;
         }
 
         public async Task ClearQueue(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
@@ -185,30 +202,44 @@ namespace DiscordBot.Services
 
             try
             {
-                // Get guilds queue
                 GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
 
-                // Tell discord we acknowledge the interaction
-                var validObject = await DeferInteractionAsync(command, component);
+                // Get the valid object parameter
+                var validObject = GetValidInteractionObject(command, component).Result;
 
                 switch (validObject)
                 {
                     case SocketSlashCommand:
-                        if (validObject is SocketSlashCommand validCommand && validCommand.User is IGuildUser commandUser)
+                        if (validObject is SocketSlashCommand validCommand && validCommand.User is SocketGuildUser commandUser && commandUser.VoiceChannel.Users != null)
                         {
+                            // Check if user and bot are in the same voice channel
+                            if (!commandUser.VoiceChannel.Users.Any(u => u.Id == _client.CurrentUser.Id))
+                            {
+                                // Respond with error
+                            }
+
+                            await validCommand.DeferAsync();
+
                             // Replace the song queue tied to guild, but include the currently playing song in the new queue
                             guildData.Queue = new List<SongData>() { guildData.Queue[0] };
 
                             // Update guild data
                             _guildData.TryUpdate(guildId, foundGuild, foundGuild);
 
-
                             await RespondToSlashCommand("queue-cleared", validCommand);
                         }
                         break;
                     case SocketMessageComponent:
-                        if (validObject is SocketMessageComponent validComponent && validComponent.User is IGuildUser componentUser)
+                        if (validObject is SocketMessageComponent validComponent && validComponent.User is SocketGuildUser componentUser && componentUser.VoiceChannel.Users != null)
                         {
+                            // Check if user and bot are in the same voice channel
+                            if (!componentUser.VoiceChannel.Users.Any(u => u.Id == _client.CurrentUser.Id))
+                            {
+                                // Respond with error
+                            }
+
+                            await validComponent.DeferAsync();
+
                             // Replace the song queue tied to guild, but include the currently playing song in the new queue
                             guildData.Queue = new List<SongData>() { guildData.Queue[0] };
 
@@ -226,31 +257,22 @@ namespace DiscordBot.Services
             {
                 Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : ClearQueue()");
             }
-
-            return;
         }
 
-        private async Task<object> DeferInteractionAsync(SocketSlashCommand? command = null, SocketMessageComponent? component = null)
+        private Task<object> GetValidInteractionObject(SocketSlashCommand? command = null, SocketMessageComponent? component = null)
         {
-            // This method assumes atleast one parameter has a value. Both can have values, but command is preferred
-
             if (command != null)
             {
-                await command.DeferAsync();
-
-                return command;
+                return Task.FromResult<object>(command);
             }
             else if (component != null)
             {
-                await component.DeferAsync();
-
-                return component;
+                return Task.FromResult<object>(component);
             }
             else
             {
                 throw new Exception($"SocketSlashCommand and SocketMessageComponent were null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
-
         }
 
         private CancellationTokenSource UpdateOrAddCancellationTokenSource(ulong guildId)
