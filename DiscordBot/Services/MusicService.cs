@@ -432,11 +432,10 @@ namespace DiscordBot.Services
                             embedBuilder.Author = new EmbedAuthorBuilder
                             {
                                 IconUrl = null,
-                                Name = $"Song skipped in {commandUser.VoiceChannel}",
+                                Name = $"{validCommand.User.GlobalName} skipped a song in {commandUser.VoiceChannel}",
                                 Url = null
                             };
-                            embedBuilder.Title = queue[0].Title;
-                            embedBuilder.Url = queue[0].VideoUrl;
+                            embedBuilder.Description = $"[{queue[0].Title}]({queue[0].VideoUrl})";
                             embedBuilder.ThumbnailUrl = queue[0].ThumbnailUrl;
                             embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.Guild.Name, IconUrl = commandUser.Guild.IconUrl });
 
@@ -449,7 +448,7 @@ namespace DiscordBot.Services
                             embedBuilder.Author = new EmbedAuthorBuilder
                             {
                                 IconUrl = null,
-                                Name = $"Queue cleared in {commandUser.VoiceChannel}",
+                                Name = $"{validCommand.User.GlobalName} cleared the queue in {commandUser.VoiceChannel}",
                                 Url = null
                             };
                             embedBuilder.Description = $"Use /play to add more songs to the queue";
@@ -464,11 +463,10 @@ namespace DiscordBot.Services
                             embedBuilder.Author = new EmbedAuthorBuilder
                             {
                                 IconUrl = null,
-                                Name = $"Added a new song to the queue",
+                                Name = $"{validCommand.User.GlobalName} added a new song to the queue",
                                 Url = null
                             };
-                            embedBuilder.Title = queue[queue.Count - 1].Title;
-                            embedBuilder.Url = queue[queue.Count - 1].VideoUrl;
+                            embedBuilder.Description = $"[{queue[queue.Count - 1].Title}]({queue[queue.Count - 1].VideoUrl})";
                             embedBuilder.ThumbnailUrl = queue[queue.Count - 1].ThumbnailUrl;
                             embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.Guild.Name, IconUrl = commandUser.Guild.IconUrl });
 
@@ -480,7 +478,7 @@ namespace DiscordBot.Services
                                     {
                                         new EmbedFieldBuilder
                                         {
-                                            Name = "Songs in the queue",
+                                            Name = "Songs in queue",
                                             Value = $"- {queue[1].Title} \n",
                                         }
                                     };
@@ -588,33 +586,26 @@ namespace DiscordBot.Services
                             embedBuilder.Author = new EmbedAuthorBuilder
                             {
                                 IconUrl = null,
-                                Name = $"Song skipped in {componentUser.VoiceChannel}",
+                                Name = $"{validComponent.User.GlobalName} skipped a song in {componentUser.VoiceChannel}",
                                 Url = null
                             };
-                            embedBuilder.Title = queue[0].Title;
-                            embedBuilder.Url = queue[0].VideoUrl;
+                            embedBuilder.Description = $"[{queue[0].Title}]({queue[0].VideoUrl})";
                             embedBuilder.ThumbnailUrl = queue[0].ThumbnailUrl;
                             embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.Guild.Name, IconUrl = componentUser.Guild.IconUrl });
 
-                            await validComponent.ModifyOriginalResponseAsync(msg =>
-                            {
-                                msg.Embeds = new[] { embedBuilder.Build() };
-                            });
+                            await validComponent.FollowupAsync(embeds: new[] { embedBuilder.Build() });
                             break;
                         case "queue-cleared":
                             embedBuilder.Author = new EmbedAuthorBuilder
                             {
                                 IconUrl = null,
-                                Name = $"Queue cleared in {componentUser.VoiceChannel}",
+                                Name = $"{validComponent.User.GlobalName} cleared the queue in {componentUser.VoiceChannel}",
                                 Url = null
                             };
                             embedBuilder.Description = $"Use /play to add more songs to the queue";
                             embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.Guild.Name, IconUrl = componentUser.Guild.IconUrl });
 
-                            await validComponent.ModifyOriginalResponseAsync(msg =>
-                            {
-                                msg.Embeds = new[] { embedBuilder.Build() };
-                            });
+                            await validComponent.FollowupAsync(embeds: new[] { embedBuilder.Build() });
                             break;
                     }
                     break;
