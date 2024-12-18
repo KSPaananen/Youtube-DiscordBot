@@ -9,14 +9,14 @@ namespace DiscordBot.Handler
     {
         private DiscordSocketClient _client;
 
-        private IMessageService _messageService;
+        private IGuildService _guildService;
         private IMusicService _musicService;
 
-        public GuildHandler(DiscordSocketClient client, IMessageService messageService, IMusicService musicService)
+        public GuildHandler(DiscordSocketClient client, IGuildService guildservice, IMusicService musicService)
         {
             _client = client ?? throw new NullReferenceException(nameof(client));
 
-            _messageService = messageService ?? throw new NullReferenceException(nameof(messageService));
+            _guildService = guildservice ?? throw new NullReferenceException(nameof(guildservice));
             _musicService = musicService ?? throw new NullReferenceException(nameof(musicService));
         }
 
@@ -34,7 +34,7 @@ namespace DiscordBot.Handler
             {
                 try
                 {
-                    await _messageService.SendJoinedGuildMessage(guild);
+                    await _guildService.SendJoinedGuildMessage(guild);
                 }
                 catch (Exception ex)
                 {

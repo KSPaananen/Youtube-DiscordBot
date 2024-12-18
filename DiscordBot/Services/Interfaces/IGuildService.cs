@@ -1,9 +1,8 @@
 ﻿using Discord.WebSocket;
-using DiscordBot.Models;
 
 namespace DiscordBot.Services.Interfaces
 {
-    public interface IMessageService
+    public interface IGuildService
     {
         Task SendJoinedGuildMessage(SocketGuild guild);
 

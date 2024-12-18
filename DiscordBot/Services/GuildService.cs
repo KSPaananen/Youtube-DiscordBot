@@ -6,7 +6,7 @@ using DiscordBot.Services.Interfaces;
 
 namespace DiscordBot.Services
 {
-    public class MessageService : IMessageService
+    public class GuildService : IGuildService
     {
         private DiscordSocketClient _client;
 
@@ -14,12 +14,10 @@ namespace DiscordBot.Services
 
         private string _discordLink;
 
-        public MessageService(DiscordSocketClient client, IConfigurationRepository configurationRepository)
+        public GuildService(DiscordSocketClient client, IConfigurationRepository configurationRepository)
         {
             _client = client ?? throw new NullReferenceException(nameof(client));
-
             _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(configurationRepository));
-
             _discordLink = _configurationRepository.GetDiscordLink();
         }
 
