@@ -457,32 +457,30 @@ namespace DiscordBot.Services
                             // Rewnew CancellationTokenSource, update guild cts with it and replace old cTokenSource with the new one
                             cTokenSource = UpdateOrAddCancellationTokenSource(guildId);
                         }
-                        finally
+
+                        // Flush & dispose streams
+                        await outStream.FlushAsync();
+                        ffmpegStream.Dispose();
+
+                        // Get updated version of queue
+                        var guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                        queue = guildData.Queue;
+
+                        // Influence response behaviour by settings FirstSong to false and remove the song we just played from queue
+                        guildData.FirstSong = false;
+                        queue.RemoveAt(0);
+
+                        // Disable buttons of the just played songs now-playing notification
+                        await DisableButtons(guildId, "now-playing");
+
+                        // Check if songlist is empty. Set FirstSong back to true if its empty
+                        if (queue.Count <= 0)
                         {
-                            // Flush & dispose streams
-                            await outStream.FlushAsync();
-                            ffmpegStream.Dispose();
-
-                            // Get updated version of queue
-                            var guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
-                            queue = guildData.Queue;
-
-                            // Influence response behaviour by settings FirstSong to false and remove the song we just played from queue
-                            guildData.FirstSong = false;
-                            queue.RemoveAt(0);
-
-                            // Disable buttons of the just played songs now-playing notification
-                            await DisableButtons(guildId, "now-playing");
-
-                            // Check if songlist is empty. Set FirstSong back to true if its empty
-                            if (queue.Count <= 0)
-                            {
-                                guildData.FirstSong = true;
-                            }
-
-                            // Update guild data
-                            _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
+                            guildData.FirstSong = true;
                         }
+
+                        // Update guild data
+                        _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
 
                     }
                 }
