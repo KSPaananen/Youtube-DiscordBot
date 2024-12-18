@@ -1,5 +1,4 @@
-﻿using Discord;
-using Discord.WebSocket;
+﻿using Discord.WebSocket;
 using DiscordBot.Handler.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Reflection;
@@ -88,12 +87,11 @@ namespace DiscordBot.Handler
                         {
                             await _musicService.DisposeGuildResourcesAsync(disconnectedChannel.Guild.Id);
                         }
-                        // On user disconnect check if channel ????
+                        // On user disconnect check if channel has any users left
                         else if (user.Id != _client.CurrentUser.Id)
                         {
                             await _musicService.CheckChannelStateAsync(disconnectedChannel);
                         }
-
                     }
 
                     // On join

@@ -24,7 +24,7 @@ namespace DiscordBot.Services
         // ToDo:
         // - Clean up code & comments
         // - Tidy up embed creation. Current setup makes me cringe
-        // - Add support for playlists
+        // - Add support for playlists?
 
         public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
