@@ -1,5 +1,4 @@
-﻿using DiscordBot.Models;
-using DiscordBot.Modules.Interfaces;
+﻿using DiscordBot.Modules.Interfaces;
 using System.Diagnostics;
 
 namespace DiscordBot.Modules
@@ -28,7 +27,7 @@ namespace DiscordBot.Modules
                                 $"-reconnect 1 " +
                                 $"-reconnect_at_eof 1 " +
                                 $"-reconnect_streamed 1 " +
-                                $"-reconnect_delay_max 3 " +
+                                $"-reconnect_delay_max 1 " +
                                 $"-rw_timeout 5000000 " +
                                 $"-timeout 1000000 " +
                                 $"-max_interleave_delta 0 " +
@@ -36,7 +35,7 @@ namespace DiscordBot.Modules
                                 $"-nostats " +
                                 $"-loglevel quiet " +
                                 $"-i \"{url}\" " +
-                                $"-ac 2 " + 
+                                $"-ac 2 " +
                                 $"-ar 48000 " +
                                 $"-f s16le pipe:1",
                     RedirectStandardOutput = true,
@@ -49,7 +48,7 @@ namespace DiscordBot.Modules
             {
                 if (!string.IsNullOrEmpty(args.Data))
                 {
-                    Console.WriteLine($"FFmpeg: {args.Data}");
+                    Console.WriteLine($"> FFmpeg: {args.Data}");
                 }
             };
 
