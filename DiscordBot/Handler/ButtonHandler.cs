@@ -27,10 +27,10 @@ namespace DiscordBot.Handler
                 switch (component.Data.CustomId)
                 {
                     case "embed-skip-button":
-                        await _musicService.SkipSong(guildId, null, component);
+                        await _musicService.SkipSongAsync(guildId, null, component);
                         break;
                     case "embed-clear-queue-button":
-                        await _musicService.ClearQueue(guildId, null, component);
+                        await _musicService.ClearQueueAsync(guildId, null, component);
                         break;
 
 

@@ -39,13 +39,13 @@ namespace DiscordBot.Handler
                     switch (command.CommandName)
                     {
                         case "play":
-                            await _musicService.Play(command);
+                            await _musicService.PlayAsync(command);
                             break;
                         case "skip":
-                            await _musicService.SkipSong(guildId, command);
+                            await _musicService.SkipSongAsync(guildId, command);
                             break;
                         case "clear-queue":
-                            await _musicService.ClearQueue(guildId, command);
+                            await _musicService.ClearQueueAsync(guildId, command);
                             break;
                     }
                 }

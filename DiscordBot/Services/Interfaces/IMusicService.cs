@@ -5,11 +5,13 @@ namespace DiscordBot.Services.Interfaces
 {
     public interface IMusicService
     {
-        Task Play(SocketSlashCommand command);
+        Task PlayAsync(SocketSlashCommand command);
 
-        Task SkipSong(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
+        Task SkipSongAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
 
-        Task ClearQueue(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
+        Task ClearQueueAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
+
+        Task DisposeGuildResourcesAsync(ulong guildId);
 
     }
 }

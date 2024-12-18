@@ -7,6 +7,7 @@ using DiscordBot.Modules.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Reflection;
 
 namespace DiscordBot.Services
@@ -19,13 +20,14 @@ namespace DiscordBot.Services
         private IYtDlp _ytDlp;
         private IFFmpeg _ffmpeg;
 
-        private ConcurrentDictionary<ulong, GuildData> _guildData;
+        private ConcurrentDictionary<ulong, GuildData> _guildDataDict;
 
         // ToDo:
-        // - Further refactoring
-        // - Tidy up response building etc
-        // - Playlists
+        // - Clean up code & comments
+        // - Tidy up embed creation. Current setup makes me cringe
+        // - Add support for playlists
         // - Autodisconnect after queue empties
+        // - Autodisconnect when channel is empty
         
         public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
@@ -35,10 +37,10 @@ namespace DiscordBot.Services
             _ytDlp = ytDlp ?? throw new NullReferenceException(nameof(ytDlp));
             _ffmpeg = ffmpeg ?? throw new NullReferenceException(nameof(ffmpeg));
 
-            _guildData = new();
+            _guildDataDict = new();
         }
 
-        public async Task Play(SocketSlashCommand command)
+        public async Task PlayAsync(SocketSlashCommand command)
         {
             try
             {
@@ -48,7 +50,7 @@ namespace DiscordBot.Services
                 }
 
                 // Try finding an already existing guild in the dictionary
-                GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : new GuildData();
+                GuildData guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : new GuildData();
 
                 IVoiceChannel voiceChannel = user.VoiceChannel;
 
@@ -83,9 +85,6 @@ namespace DiscordBot.Services
                     {
                         guildData.AudioClient = await user.VoiceChannel.ConnectAsync(false, false, false, false);
 
-                        // Attach methods to events
-                        guildData.AudioClient.StreamDestroyed += StreamDestroyed;
-
                         // Check if we we're able to connect. Throw error if not
                         if (guildData.AudioClient == null || guildData.AudioClient.ConnectionState == ConnectionState.Disconnected)
                         {
@@ -93,7 +92,7 @@ namespace DiscordBot.Services
                         }
 
                         // Update _guildData with guildData object
-                        _guildData.AddOrUpdate(guildId, guildData, (key, oldValue) => oldValue);
+                        _guildDataDict.AddOrUpdate(guildId, guildData, (key, oldValue) => oldValue);
 
                         // Tell discord we acknowledge the interaction
                         await command.DeferAsync();
@@ -124,14 +123,14 @@ namespace DiscordBot.Services
             return;
         }
 
-        public async Task SkipSong(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
+        public async Task SkipSongAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
         {
             // This method assumes that only either command or component has a value.
             // Both SocketSlashCommand and SocketMessageComponent cannot have a value at the same time
 
             try
             {
-                GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                GuildData guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
 
                 if (guildData.cTokenSource == null)
                 {
@@ -197,14 +196,14 @@ namespace DiscordBot.Services
             return;
         }
 
-        public async Task ClearQueue(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
+        public async Task ClearQueueAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
         {
             // This method assumes that only either command or component has a value.
             // Both SocketSlashCommand and SocketMessageComponent cannot have a value at the same time
 
             try
             {
-                GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                GuildData guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
 
                 // Get the valid object from parameters
                 var validObject = GetValidInteractionObject(command, component).Result;
@@ -227,7 +226,7 @@ namespace DiscordBot.Services
                             // Replace the song queue tied to guild, but include the currently playing song in the new queue
                             guildData.Queue = new List<SongData>() { guildData.Queue[0] };
 
-                            _guildData.TryUpdate(guildId, foundGuild, foundGuild);
+                            _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
 
                             await SendResponseAsync(guildId, "queue-cleared", validCommand);
                         }
@@ -248,7 +247,7 @@ namespace DiscordBot.Services
                             // Replace the song queue tied to guild, but include the currently playing song in the new queue
                             guildData.Queue = new List<SongData>() { guildData.Queue[0] };
 
-                            _guildData.TryUpdate(guildId, foundGuild, foundGuild);
+                            _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
 
                             await SendResponseAsync(guildId, "queue-cleared", null, validComponent);
                         }
@@ -265,15 +264,31 @@ namespace DiscordBot.Services
             }
         }
 
+        public async Task DisposeGuildResourcesAsync(ulong guildId)
+        {
+            foreach (var entry in _guildDataDict)
+            {
+                if (entry.Key == guildId)
+                {
+                    // Disable buttons from last "now-playing" before deleting
+                    await DisableButtons(entry.Key, "now-playing");
+
+                    _guildDataDict.TryRemove(entry.Key, out _);
+                }
+            }
+
+            return;
+        }
+
         private CancellationTokenSource UpdateOrAddCancellationTokenSource(ulong guildId)
         {
             // Updae cTokenSource property of GuildData
-            if (_guildData.TryGetValue(guildId, out var foundGuild))
+            if (_guildDataDict.TryGetValue(guildId, out var foundGuild))
             {
                 foundGuild.cTokenSource = new CancellationTokenSource();
 
                 // Update guild data
-                _guildData.TryUpdate(guildId, foundGuild, foundGuild);
+                _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
 
                 return foundGuild.cTokenSource;
             }
@@ -297,14 +312,14 @@ namespace DiscordBot.Services
 
         private async Task AppendQueryToQueueAsync(SocketSlashCommand command)
         {
-            if (command.GuildId is ulong guildId && _guildData.TryGetValue(guildId, out var foundGuild))
+            if (command.GuildId is ulong guildId && _guildDataDict.TryGetValue(guildId, out var foundGuild))
             {
                 // Create song object with slashcommands first parameter and add it to queue
                 SongData song = _ytDlp.GetSongFromSlashCommand(command);
 
                 foundGuild.Queue.Add(song);
 
-                _guildData.TryUpdate(guildId, foundGuild, foundGuild);
+                _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
 
                 // Don't respond with "user-requested" if queue count is 1
                 if (foundGuild.Queue.Count > 1)
@@ -323,7 +338,7 @@ namespace DiscordBot.Services
                 throw new Exception($"Command GuildID was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
-            if (!_guildData.TryGetValue(guildId, out var guildData) || guildData.Queue == null || guildData.AudioClient == null || guildData.cTokenSource == null)
+            if (!_guildDataDict.TryGetValue(guildId, out var guildData) || guildData.Queue == null || guildData.AudioClient == null || guildData.cTokenSource == null)
             {
                 throw new Exception($"Guild data was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
@@ -371,7 +386,7 @@ namespace DiscordBot.Services
                             ffmpegStream.Dispose();
 
                             // Get updated version of queue
-                            var guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                            var guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                             queue = guildData.Queue;
 
                             // Set first song boolean to false to influense responding behaviour
@@ -390,7 +405,7 @@ namespace DiscordBot.Services
                             }
 
                             // Update guild data
-                            _guildData.TryUpdate(guildId, foundGuild, foundGuild);
+                            _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
 
                         }
 
@@ -412,7 +427,7 @@ namespace DiscordBot.Services
             // Get the valid object from parameters
             var validObject = GetValidInteractionObject(command, component).Result;
 
-            GuildData guildData = _guildData.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+            GuildData guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             List<SongData> queue = guildData.Queue;
 
             var embedBuilder = new EmbedBuilder();
@@ -570,7 +585,7 @@ namespace DiscordBot.Services
                             }
 
                             // Update guild
-                            _guildData.TryUpdate(guildId, guildData, guildData);
+                            _guildDataDict.TryUpdate(guildId, guildData, guildData);
                             break;
                     }
                     break;
@@ -701,7 +716,7 @@ namespace DiscordBot.Services
 
         private async Task DisableButtons(ulong guildId, string id)
         {
-            if (!_guildData.TryGetValue(guildId, out var guildData) || guildData.UserMessage is not IUserMessage message)
+            if (!_guildDataDict.TryGetValue(guildId, out var guildData) || guildData.UserMessage is not IUserMessage message)
             {
                 throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
@@ -743,27 +758,6 @@ namespace DiscordBot.Services
             return;
         }
 
-        private async Task StreamDestroyed(ulong streamId)
-        {
-            // ToDo:
-            // - Figure out a more resource efficient solution here
-
-            // Iterate through guild data dictionary looking for stream id
-            foreach (var entry in _guildData)
-            {
-                // If stream id's match, delete guild from dictionary
-                if (entry.Value.StreamID == streamId)
-                {
-                    // Disable buttons from last "now-playing" before deleting
-                    await DisableButtons(entry.Key, "now-playing");
-
-                    _guildData.TryRemove(entry.Key, out _);
-                }
-            }
-
-            return;
-        }
-
-
+        
     }
 }

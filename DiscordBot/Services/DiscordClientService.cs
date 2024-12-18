@@ -15,13 +15,12 @@ namespace DiscordBot.Services
 
         private ISlashCommandHandler _slashCommandHandler;
         private IReactionHandler _reactionHandler;
-        private IUserHandler _userHandler;
         private IButtonHandler _buttonHandler;
         private IMessageHandler _messageHandler;
         private IGuildHandler _guildHandler;
 
         public DiscordClientService(DiscordSocketClient client, IConfigurationRepository configurationRepository, ISlashCommandHandler slashCommandHandler,
-             IReactionHandler reactionHandler, IUserHandler userHandler, IButtonHandler buttonHandler, IMessageHandler messageHandler, IGuildHandler guildHandler)
+             IReactionHandler reactionHandler, IButtonHandler buttonHandler, IMessageHandler messageHandler, IGuildHandler guildHandler)
         {
             _client = client ?? throw new NullReferenceException(nameof(client));
 
@@ -29,7 +28,6 @@ namespace DiscordBot.Services
 
             _slashCommandHandler = slashCommandHandler ?? throw new NullReferenceException(nameof(slashCommandHandler));
             _reactionHandler = reactionHandler ?? throw new NullReferenceException(nameof(reactionHandler));
-            _userHandler = userHandler ?? throw new NullReferenceException(nameof(userHandler));
             _buttonHandler = buttonHandler ?? throw new NullReferenceException(nameof(buttonHandler));
             _messageHandler = messageHandler ?? throw new NullReferenceException(nameof(messageHandler));
             _guildHandler = guildHandler ?? throw new NullReferenceException(nameof(guildHandler));
@@ -37,23 +35,23 @@ namespace DiscordBot.Services
             // Attach methods to clients events
             _client.SlashCommandExecuted += _slashCommandHandler.HandleSlashCommand;
 
-            _client.ReactionAdded += _reactionHandler.HandleReactionAdded;
-            _client.ReactionRemoved += _reactionHandler.HandleReactionRemovedAsync;
-            _client.ReactionsCleared += _reactionHandler.HandleReactionsClearedAsync;
-
-            _client.UserJoined += _userHandler.HandleUserJoined;
-            _client.UserLeft += _userHandler.HandleUserLeft;
-            _client.UserBanned += _userHandler.HandleUserBanned;
-            _client.UserUnbanned += _userHandler.HandleUserUnBanned;
-
-            _client.ButtonExecuted += _buttonHandler.HandleButtonExecuted;
-
             _client.MessageCommandExecuted += _messageHandler.HandleMessageCommandExecuted;
             _client.MessageReceived += _messageHandler.HandleMessageReceived;
             _client.MessageDeleted += _messageHandler.HandleMessageDeleted;
             _client.MessageUpdated += _messageHandler.HandleMessageUpdated;
 
+            _client.ReactionAdded += _reactionHandler.HandleReactionAdded;
+            _client.ReactionRemoved += _reactionHandler.HandleReactionRemovedAsync;
+            _client.ReactionsCleared += _reactionHandler.HandleReactionsClearedAsync;
+
+            _client.ButtonExecuted += _buttonHandler.HandleButtonExecuted;
+
             _client.JoinedGuild += _guildHandler.HandleJoinGuild;
+            _client.UserJoined += _guildHandler.HandleUserJoined;
+            _client.UserLeft += _guildHandler.HandleUserLeft;
+            _client.UserBanned += _guildHandler.HandleUserBanned;
+            _client.UserUnbanned += _guildHandler.HandleUserUnBanned;
+            _client.UserVoiceStateUpdated += _guildHandler.UserVoiceStateUpdated;
 
             _client.Ready += ClientReady;
             _client.Log += LogAsync;

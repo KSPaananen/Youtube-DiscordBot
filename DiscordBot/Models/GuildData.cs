@@ -1,10 +1,5 @@
 ﻿using Discord;
 using Discord.Audio;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DiscordBot.Models
 {
@@ -19,19 +14,6 @@ namespace DiscordBot.Models
         public List<SongData> Queue { get; set; } = new List<SongData>();
 
         public bool FirstSong { get; set; } = true;
-
-        public ulong StreamID
-        {
-            get
-            {
-                return AudioClient != null && AudioClient.GetStreams().Any() ? AudioClient.GetStreams().First().Key : 0;
-            }
-            set
-            {
-
-            }
-        }
-
 
     }
 }
