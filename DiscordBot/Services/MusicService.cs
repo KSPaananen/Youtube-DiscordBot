@@ -22,8 +22,8 @@ namespace DiscordBot.Services
         private ConcurrentDictionary<ulong, GuildData> _guildDataDict;
 
         // ToDo:
-        // - Clean up code & comments
         // - Tidy up embed creation. Current setup makes me cringe
+        // - Revisit StopPlayingAsync(), ClearQueueAsync() & SkipSongAsync() as the code is very repetive
         // - Add support for playlists?
 
         public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
@@ -118,6 +118,65 @@ namespace DiscordBot.Services
             }
 
             return;
+        }
+
+        public async Task StopPlayingAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
+        {
+            try
+            {
+                // Get the valid object from parameters
+                var validObject = GetValidInteractionObject(command, component).Result;
+
+                switch (validObject)
+                {
+                    case SocketSlashCommand:
+                        if (validObject is SocketSlashCommand validCommand && validCommand.User is SocketGuildUser commandUser)
+                        {
+                            if (commandUser.VoiceChannel == null || !commandUser.VoiceChannel.Users.Any(u => u.Id == _client.CurrentUser.Id))
+                            {
+                                await SendErrorResponseAsync("stop-playing-wrong-channel", validCommand);
+
+                                return;
+                            }
+
+                            await validCommand.DeferAsync();
+
+                            await commandUser.VoiceChannel.DisconnectAsync();
+
+                            await SendResponseAsync(guildId, "stopped-playing", validCommand);
+
+                            return;
+                        }
+                        break;
+                    case SocketMessageComponent:
+                        if (validObject is SocketMessageComponent validComponent && validComponent.User is SocketGuildUser componentUser)
+                        {
+                            if (componentUser.VoiceChannel == null || !componentUser.VoiceChannel.Users.Any(u => u.Id == _client.CurrentUser.Id))
+                            {
+                                await SendErrorResponseAsync("stop-playing-wrong-channel", null, validComponent);
+
+                                return;
+                            }
+
+                            await validComponent.DeferAsync();
+
+                            await componentUser.VoiceChannel.DisconnectAsync();
+
+                            await SendResponseAsync(guildId, "stopped-playing", null, validComponent);
+
+                            return;
+                        }
+                        break;
+                }
+
+                // Disable the buttons of the last "now-playing" reply
+                await DisableButtons(guildId, "now-playing");
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : StopPlayingAsync()");
+            }
         }
 
         public async Task SkipSongAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
@@ -530,6 +589,21 @@ namespace DiscordBot.Services
                                 msg.Embeds = new[] { embedBuilder.Build() };
                             });
                             break;
+                        case "stopped-playing":
+                            embedBuilder.Author = new EmbedAuthorBuilder
+                            {
+                                IconUrl = null,
+                                Name = $"{validCommand.User.GlobalName} stopped playing in {commandUser.VoiceChannel}",
+                                Url = null
+                            };
+                            embedBuilder.Description = $"Use /play to continue listening";
+                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = commandUser.Guild.Name, IconUrl = commandUser.Guild.IconUrl });
+
+                            await validCommand.ModifyOriginalResponseAsync(msg =>
+                            {
+                                msg.Embeds = new[] { embedBuilder.Build() };
+                            });
+                            break;
                         case "now-playing":
                             embedBuilder.Author = new EmbedAuthorBuilder
                             {
@@ -570,6 +644,12 @@ namespace DiscordBot.Services
 
                             var buttons = new List<IMessageComponent>
                             {
+                                new ButtonBuilder()
+                                    .WithLabel("Stop playing")
+                                    .WithStyle(ButtonStyle.Secondary)
+                                    .WithCustomId("embed-stop-playing-button")
+                                    .WithDisabled(false).Build(),
+
                                 new ButtonBuilder()
                                     .WithLabel("Clear queue")
                                     .WithStyle(ButtonStyle.Secondary)
@@ -642,6 +722,18 @@ namespace DiscordBot.Services
 
                             await validComponent.FollowupAsync(embeds: new[] { embedBuilder.Build() });
                             break;
+                        case "stopped-playing":
+                            embedBuilder.Author = new EmbedAuthorBuilder
+                            {
+                                IconUrl = null,
+                                Name = $"{validComponent.User.GlobalName} stopped playing in {componentUser.VoiceChannel}",
+                                Url = null
+                            };
+                            embedBuilder.Description = $"Use /play to continue listening";
+                            embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = componentUser.Guild.Name, IconUrl = componentUser.Guild.IconUrl });
+
+                            await validComponent.FollowupAsync(embeds: new[] { embedBuilder.Build() });
+                            break;
                     }
                     break;
             }
@@ -679,6 +771,10 @@ namespace DiscordBot.Services
                             embedBuilder.Title = $"Couldn't connect to the voice channel";
                             embedBuilder.Description = $"The voice channel is at maximum capacity. You could kick your least favorite friend to make room.";
                             break;
+                        case "stop-playing-wrong-channel":
+                            embedBuilder.Title = $"Couldn't stop playing";
+                            embedBuilder.Description = $"You must be connected to the same voice channel as the bot to execute **/{validCommand.CommandName}**.";
+                            break;
                         case "skip-wrong-channel":
                             embedBuilder.Title = $"Couldn't skip the song";
                             embedBuilder.Description = $"You must be connected to the same voice channel as the bot to execute **/{validCommand.CommandName}**.";
@@ -715,6 +811,10 @@ namespace DiscordBot.Services
                             embedBuilder.Title = $"Something went wrong";
                             embedBuilder.Description = $"Something went wrong. ";
                             break;
+                        case "stop-playing-wrong-channel":
+                            embedBuilder.Title = $"Couldn't stop playing";
+                            embedBuilder.Description = $"You must be connected to the same voice channel as the bot to stop playing.";
+                            break;
                         case "skip-wrong-channel":
                             embedBuilder.Title = $"Couldn't skip the song";
                             embedBuilder.Description = $"You must be connected to the same voice channel as the bot to skip a song.";
@@ -748,6 +848,12 @@ namespace DiscordBot.Services
                 case "now-playing":
                     var buttons = new List<IMessageComponent>
                     {
+                        new ButtonBuilder()
+                                    .WithLabel("Stop playing")
+                                    .WithStyle(ButtonStyle.Secondary)
+                                    .WithCustomId("embed-stop-playing-button")
+                                    .WithDisabled(true).Build(),
+
                         new ButtonBuilder()
                                 .WithLabel("Clear queue")
                                 .WithStyle(ButtonStyle.Secondary)

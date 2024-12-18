@@ -6,6 +6,8 @@ namespace DiscordBot.Services.Interfaces
     {
         Task PlayAsync(SocketSlashCommand command);
 
+        Task StopPlayingAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
+
         Task SkipSongAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
 
         Task ClearQueueAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);

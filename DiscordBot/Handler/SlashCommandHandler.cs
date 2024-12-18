@@ -39,7 +39,10 @@ namespace DiscordBot.Handler
                     switch (command.CommandName)
                     {
                         case "play":
-                            await _musicService.PlayAsync(command);
+                            await _musicService.PlayAsync( command);
+                            break;
+                        case "stop":
+                            await _musicService.StopPlayingAsync(guildId, command);
                             break;
                         case "skip":
                             await _musicService.SkipSongAsync(guildId, command);
@@ -65,20 +68,24 @@ namespace DiscordBot.Handler
 
             // Play music command
             var globalPlayCommand = new SlashCommandBuilder();
-
             globalPlayCommand.WithName("play");
-            globalPlayCommand.WithDescription("Play music in a voicechat");
+            globalPlayCommand.WithDescription("Play music in a voice chat. Supports queries and links");
             globalPlayCommand.AddOption("query", ApplicationCommandOptionType.String, "Search music with a query or provide a link to the song", true);
             globalAppCommandsList.Add(globalPlayCommand.Build());
 
+            var globalStopPlayingCommand = new SlashCommandBuilder();
+            globalStopPlayingCommand.WithName("stop");
+            globalStopPlayingCommand.WithDescription("Stop playing and disconnect the bot from the voice channel");
+            globalAppCommandsList.Add(globalStopPlayingCommand.Build());
+
             var globalSkipCommand = new SlashCommandBuilder();
             globalSkipCommand.WithName("skip");
-            globalSkipCommand.WithDescription("Skips the currently playing song");
+            globalSkipCommand.WithDescription("Skip the song thats currently playing");
             globalAppCommandsList.Add(globalSkipCommand.Build());
 
             var globalClearQueueCommand = new SlashCommandBuilder();
             globalClearQueueCommand.WithName("clear-queue");
-            globalClearQueueCommand.WithDescription("Clears the queue");
+            globalClearQueueCommand.WithDescription("Clear the song queue");
             globalAppCommandsList.Add(globalClearQueueCommand.Build());
 
             var requestOptions = new RequestOptions()
