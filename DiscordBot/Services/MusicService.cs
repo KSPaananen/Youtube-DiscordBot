@@ -169,8 +169,8 @@ namespace DiscordBot.Services
                         break;
                 }
 
-                // Disable the buttons of the last "now-playing" reply
-                await DisableButtons(guildId, "now-playing");
+                // Modify "now-playing" message
+                await ModifyUserMessage(guildId, "now-playing");
 
             }
             catch (Exception ex)
@@ -233,7 +233,7 @@ namespace DiscordBot.Services
                         break;
                 }
 
-                await DisableButtons(guildId, "now-playing");
+                await ModifyUserMessage(guildId, "now-playing");
 
                 // Request cancel last or you will end up with a race condition
                 guildData.cTokenSource.Cancel();
@@ -347,8 +347,8 @@ namespace DiscordBot.Services
                 {
                     if (entry.Key == guildId)
                     {
-                        // Disable buttons from last "now-playing" before deleting
-                        await DisableButtons(entry.Key, "now-playing");
+                        // Modify last "now-playing" before deleting
+                        await ModifyUserMessage(entry.Key, "now-playing");
 
                         _guildDataDict.TryRemove(entry.Key, out _);
                     }
@@ -470,8 +470,7 @@ namespace DiscordBot.Services
                         guildData.FirstSong = false;
                         queue.RemoveAt(0);
 
-                        // Disable buttons of the just played songs now-playing notification
-                        await DisableButtons(guildId, "now-playing");
+                        await ModifyUserMessage(guildId, "now-playing");
 
                         // Check if songlist is empty. Set FirstSong back to true if its empty
                         if (queue.Count <= 0)
@@ -808,52 +807,32 @@ namespace DiscordBot.Services
             return;
         }
 
-        private async Task DisableButtons(ulong guildId, string id)
+        private async Task ModifyUserMessage(ulong guildId, string id)
         {
             if (!_guildDataDict.TryGetValue(guildId, out var guildData) || guildData.UserMessage is not IUserMessage message)
             {
                 throw new Exception($"GuildData was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
             }
 
+            Embed?[]? embeds = Array.Empty<Embed>();
+
             var componentBuilder = new ComponentBuilder();
+            var rowBuilder = new ActionRowBuilder();
 
             switch (id)
             {
                 case "now-playing":
-                    var buttons = new List<IMessageComponent>
-                    {
-                        new ButtonBuilder()
-                                    .WithLabel("Stop playing")
-                                    .WithStyle(ButtonStyle.Secondary)
-                                    .WithCustomId("embed-stop-playing-button")
-                                    .WithDisabled(true).Build(),
-
-                        new ButtonBuilder()
-                                .WithLabel("Clear queue")
-                                .WithStyle(ButtonStyle.Secondary)
-                                .WithCustomId("embed-clear-queue-button")
-                                .WithDisabled(true).Build(),
-
-                        new ButtonBuilder()
-                                .WithLabel("Skip song")
-                                .WithStyle(ButtonStyle.Secondary)
-                                .WithCustomId("embed-skip-button")
-                                .WithDisabled(true).Build(),
-                    };
-
-                    var rowBuilder = new ActionRowBuilder()
-                            .WithComponents(buttons);
-
                     // Tranform message.IEmbed collection into Embed[]
-                    var embeds = message.Embeds.Select(embed => embed as Embed).Where(e => e != null).ToArray();
-
-                    await message.ModifyAsync(msg =>
-                    {
-                        msg.Embeds = embeds;
-                        msg.Components = componentBuilder.WithRows(new[] { rowBuilder }).Build();
-                    });
+                    embeds = message.Embeds.Select(embed => embed as Embed).Where(e => e != null).ToArray();
                     break;
             }
+
+            await message.ModifyAsync(msg =>
+            {
+
+                msg.Embeds = embeds;
+                msg.Components = componentBuilder.WithRows(new[] { rowBuilder }).Build();
+            });
 
             return;
         }
