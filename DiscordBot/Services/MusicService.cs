@@ -69,10 +69,9 @@ namespace DiscordBot.Services
                         // Tell discord we acknowledge the interaction
                         await command.DeferAsync();
 
-                        // Add songs to queue
+                        // Add songs to queue and start streaming audio
                         await AppendQueryToQueueAsync(command);
 
-                        // Stream audio
                         await StreamAudio(command);
 
                         return;
@@ -93,10 +92,9 @@ namespace DiscordBot.Services
                         // Tell discord we acknowledge the interaction
                         await command.DeferAsync();
 
-                        // Add songs to queue
+                        // Add songs to queue and start streaming audio
                         await AppendQueryToQueueAsync(command);
 
-                        // Stream audio
                         await StreamAudio(command);
                     }
 
@@ -121,9 +119,12 @@ namespace DiscordBot.Services
 
         public async Task StopPlayingAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null)
         {
+            // This method assumes that only either command or component has a value.
+            // Both SocketSlashCommand and SocketMessageComponent cannot have a value at the same time
+
             try
             {
-                // Get the valid object from parameters
+                // Check which parameter isn't null
                 var validObject = GetValidInteractionObject(command, component).Result;
 
                 switch (validObject)
@@ -192,7 +193,7 @@ namespace DiscordBot.Services
                     throw new Exception($"CancellationTokenSource was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
 
-                // Get the valid object from parameters
+                // Check which parameter isn't null
                 var validObject = GetValidInteractionObject(command, component).Result;
 
                 switch (validObject)
@@ -260,7 +261,7 @@ namespace DiscordBot.Services
             {
                 GuildData guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"GuildData was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
 
-                // Get the valid object from parameters
+                // Check which parameter isn't null
                 var validObject = GetValidInteractionObject(command, component).Result;
 
                 switch (validObject)
@@ -323,7 +324,7 @@ namespace DiscordBot.Services
         {
             try
             {
-                // SocketVoiceChannel.Users will return all users that connected, so we need to check if users voice channel is null to get actual number of users
+                // SocketVoiceChannel.Users will return every user that connected to voice channel. Check if Users.VoiceChannel is null to determine if they're connected
                 int userCount = channel.Users.Where(c => c.VoiceChannel != null).Count();
 
                 // Disconnect if channel is empty
@@ -393,7 +394,7 @@ namespace DiscordBot.Services
         {
             if (command.GuildId is ulong guildId && _guildDataDict.TryGetValue(guildId, out var foundGuild))
             {
-                // Create song object with slashcommands first parameter and add it to queue
+                // Get required information about the song with yt-dlp
                 SongData song = _ytDlp.GetSongFromSlashCommand(command);
 
                 foundGuild.Queue.Add(song);
@@ -458,25 +459,22 @@ namespace DiscordBot.Services
                         }
                         finally
                         {
-                            // Flush the audio stream for clean playback
+                            // Flush & dispose streams
                             await outStream.FlushAsync();
-
                             ffmpegStream.Dispose();
 
                             // Get updated version of queue
                             var guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                             queue = guildData.Queue;
 
-                            // Set first song boolean to false to influense responding behaviour
+                            // Influence response behaviour by settings FirstSong to false and remove the song we just played from queue
                             guildData.FirstSong = false;
-
-                            // Remove the song we just played from the queue
                             queue.RemoveAt(0);
 
                             // Disable buttons of the just played songs now-playing notification
                             await DisableButtons(guildId, "now-playing");
 
-                            // Check if songlist is empty. Set firstSong to true if its empty
+                            // Check if songlist is empty. Set FirstSong back to true if its empty
                             if (queue.Count <= 0)
                             {
                                 guildData.FirstSong = true;
@@ -484,14 +482,13 @@ namespace DiscordBot.Services
 
                             // Update guild data
                             _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
-
                         }
 
                     }
                 }
             }, cTokenSource.Token);
 
-            // Don't start another task if queue count is more than 1
+            // Don't start another task if we're already playing
             if (queue.Count <= 1)
             {
                 streamAudioTask.Start();
