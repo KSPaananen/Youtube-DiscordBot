@@ -4,7 +4,7 @@ namespace DiscordBot.Handler.Interfaces
 {
     public interface IGuildHandler
     {
-        Task HandleJoinGuild(SocketGuild guild);
+        Task HandleJoinedGuild(SocketGuild guild);
 
         Task HandleUserJoined(SocketGuildUser user);
 
@@ -14,7 +14,7 @@ namespace DiscordBot.Handler.Interfaces
 
         Task HandleUserUnBanned(SocketUser user, SocketGuild server);
 
-        Task UserVoiceStateUpdated(SocketUser user, SocketVoiceState joinedState, SocketVoiceState leftState);
+        Task HandleUserVoiceStateUpdated(SocketUser user, SocketVoiceState joinedState, SocketVoiceState leftState);
 
     }
 }

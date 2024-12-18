@@ -46,12 +46,12 @@ namespace DiscordBot.Services
 
             _client.ButtonExecuted += _buttonHandler.HandleButtonExecuted;
 
-            _client.JoinedGuild += _guildHandler.HandleJoinGuild;
+            _client.JoinedGuild += _guildHandler.HandleJoinedGuild;
             _client.UserJoined += _guildHandler.HandleUserJoined;
             _client.UserLeft += _guildHandler.HandleUserLeft;
             _client.UserBanned += _guildHandler.HandleUserBanned;
             _client.UserUnbanned += _guildHandler.HandleUserUnBanned;
-            _client.UserVoiceStateUpdated += _guildHandler.UserVoiceStateUpdated;
+            _client.UserVoiceStateUpdated += _guildHandler.HandleUserVoiceStateUpdated;
 
             _client.Ready += ClientReady;
             _client.Log += LogAsync;

@@ -1,5 +1,4 @@
-﻿using Discord;
-using Discord.WebSocket;
+﻿using Discord.WebSocket;
 
 namespace DiscordBot.Services.Interfaces
 {
@@ -10,6 +9,8 @@ namespace DiscordBot.Services.Interfaces
         Task SkipSongAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
 
         Task ClearQueueAsync(ulong guildId, SocketSlashCommand? command = null, SocketMessageComponent? component = null);
+
+        Task CheckChannelStateAsync(SocketVoiceChannel channel);
 
         Task DisposeGuildResourcesAsync(ulong guildId);
 

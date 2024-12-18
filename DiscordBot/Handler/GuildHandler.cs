@@ -1,4 +1,5 @@
-﻿using Discord.WebSocket;
+﻿using Discord;
+using Discord.WebSocket;
 using DiscordBot.Handler.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Reflection;
@@ -20,7 +21,7 @@ namespace DiscordBot.Handler
             _musicService = musicService ?? throw new NullReferenceException(nameof(musicService));
         }
 
-        public Task HandleJoinGuild(SocketGuild guild)
+        public Task HandleJoinedGuild(SocketGuild guild)
         {
             if (guild == null)
             {
@@ -65,7 +66,7 @@ namespace DiscordBot.Handler
             return Task.CompletedTask;
         }
 
-        public Task UserVoiceStateUpdated(SocketUser user, SocketVoiceState channelLeft, SocketVoiceState channelJoined)
+        public Task HandleUserVoiceStateUpdated(SocketUser user, SocketVoiceState disconnectedChannelState, SocketVoiceState connectedChannelState)
         {
             if (user == null)
             {
@@ -79,13 +80,27 @@ namespace DiscordBot.Handler
             {
                 try
                 {
-                    // On bot disconnect dispose resources tied to guild id
-                    if (user.Id == _client.CurrentUser.Id && channelLeft.VoiceChannel is SocketGuildChannel socketChannel)
+                    // On leave
+                    if (disconnectedChannelState.VoiceChannel is SocketVoiceChannel disconnectedChannel)
                     {
-                        await _musicService.DisposeGuildResourcesAsync(socketChannel.Guild.Id);
+                        // On bot disconnect dispose resources tied to guild in IMusicService
+                        if (user.Id == _client.CurrentUser.Id)
+                        {
+                            await _musicService.DisposeGuildResourcesAsync(disconnectedChannel.Guild.Id);
+                        }
+                        // On user disconnect check if channel ????
+                        else if (user.Id != _client.CurrentUser.Id)
+                        {
+                            await _musicService.CheckChannelStateAsync(disconnectedChannel);
+                        }
+
                     }
 
+                    // On join
+                    if (connectedChannelState.VoiceChannel is SocketGuildChannel connectedChannel)
+                    {
 
+                    }
                 }
                 catch (Exception ex)
                 {

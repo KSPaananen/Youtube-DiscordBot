@@ -60,7 +60,6 @@ builder.Services.AddSingleton<IMessageService, MessageService>();
 // Handlers
 builder.Services.AddTransient<ISlashCommandHandler, SlashCommandHandler>();
 builder.Services.AddTransient<IReactionHandler, ReactionHandler>();
-builder.Services.AddTransient<IUserHandler, UserHandler>();
 builder.Services.AddTransient<IButtonHandler, ButtonHandler>();
 builder.Services.AddTransient<IMessageHandler, MessageHandler>();
 builder.Services.AddTransient<IGuildHandler, GuildHandler>();

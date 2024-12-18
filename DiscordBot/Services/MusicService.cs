@@ -7,7 +7,6 @@ using DiscordBot.Modules.Interfaces;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 using System.Collections.Concurrent;
-using System.IO;
 using System.Reflection;
 
 namespace DiscordBot.Services
@@ -26,9 +25,7 @@ namespace DiscordBot.Services
         // - Clean up code & comments
         // - Tidy up embed creation. Current setup makes me cringe
         // - Add support for playlists
-        // - Autodisconnect after queue empties
-        // - Autodisconnect when channel is empty
-        
+
         public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
             _client = client ?? throw new NullReferenceException(nameof(client));
@@ -115,7 +112,7 @@ namespace DiscordBot.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : Play()");
+                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : PlayAsync()");
 
                 await SendErrorResponseAsync("error", command);
             }
@@ -188,7 +185,7 @@ namespace DiscordBot.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : SkipSong()");
+                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : SkipSongAsync()");
 
                 await SendErrorResponseAsync("error", command);
             }
@@ -258,26 +255,50 @@ namespace DiscordBot.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message == null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : ClearQueue()");
+                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : ClearQueueAsync()");
 
                 await SendErrorResponseAsync("error", command);
             }
         }
 
-        public async Task DisposeGuildResourcesAsync(ulong guildId)
+        public async Task CheckChannelStateAsync(SocketVoiceChannel channel)
         {
-            foreach (var entry in _guildDataDict)
+            try
             {
-                if (entry.Key == guildId)
-                {
-                    // Disable buttons from last "now-playing" before deleting
-                    await DisableButtons(entry.Key, "now-playing");
+                // SocketVoiceChannel.Users will return all users that connected, so we need to check if users voice channel is null to get actual number of users
+                int userCount = channel.Users.Where(c => c.VoiceChannel != null).Count();
 
-                    _guildDataDict.TryRemove(entry.Key, out _);
+                // Disconnect if channel is empty
+                if (userCount <= 1)
+                {
+                    await channel.DisconnectAsync();
                 }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : CheckChannelStateAsync()");
+            }
+        }
 
-            return;
+        public async Task DisposeGuildResourcesAsync(ulong guildId)
+        {
+            try
+            {
+                foreach (var entry in _guildDataDict)
+                {
+                    if (entry.Key == guildId)
+                    {
+                        // Disable buttons from last "now-playing" before deleting
+                        await DisableButtons(entry.Key, "now-playing");
+
+                        _guildDataDict.TryRemove(entry.Key, out _);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message != null ? $"> [ERROR]: {ex.Message}" : $"> [ERROR]: Something went wrong in {this.GetType().Name} : DisposeGuildResourcesAsync()");
+            }
         }
 
         private CancellationTokenSource UpdateOrAddCancellationTokenSource(ulong guildId)
@@ -379,10 +400,9 @@ namespace DiscordBot.Services
                         }
                         finally
                         {
-                            // Flush the audio stream 
+                            // Flush the audio stream for clean playback
                             await outStream.FlushAsync();
 
-                            // Dispose stream to save resources
                             ffmpegStream.Dispose();
 
                             // Get updated version of queue
@@ -758,6 +778,6 @@ namespace DiscordBot.Services
             return;
         }
 
-        
+
     }
 }
