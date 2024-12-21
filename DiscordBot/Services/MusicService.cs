@@ -22,8 +22,8 @@ namespace DiscordBot.Services
         private ConcurrentDictionary<ulong, GuildData> _guildDataDict;
 
         // ToDo:
-        // - Revisit StopPlayingAsync(), ClearQueueAsync() & SkipSongAsync() as the code is very repetive
         // - Add support for playlists?
+        // - Limit the amount of songs displayed in queue
 
         public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
@@ -394,10 +394,10 @@ namespace DiscordBot.Services
         {
             if (command.GuildId is ulong guildId && _guildDataDict.TryGetValue(guildId, out var foundGuild))
             {
-                // Get required information about the song with yt-dlp
-                SongData song = _ytDlp.GetSongFromSlashCommand(command);
+                // Get required information about the songs with yt-dlp
+                List<SongData> songList = _ytDlp.GetSongFromSlashCommand(command);
 
-                foundGuild.Queue.Add(song);
+                foundGuild.Queue.AddRange(songList);
 
                 _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
 
@@ -450,11 +450,10 @@ namespace DiscordBot.Services
 
                                 await outStream.WriteAsync(buffer.AsMemory(0, bytesRead));
                             }
-
                         }
                         catch
                         {
-                            // Rewnew CancellationTokenSource, update guild cts with it and replace old cTokenSource with the new one
+                            // Rewnew CancellationTokenSource for guild
                             cTokenSource = UpdateOrAddCancellationTokenSource(guildId);
                         }
 
@@ -466,28 +465,30 @@ namespace DiscordBot.Services
                         var guildData = _guildDataDict.TryGetValue(guildId, out var foundGuild) ? foundGuild : throw new Exception($"List<SongData> was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                         queue = guildData.Queue;
 
-                        // Influence response behaviour by settings FirstSong to false and remove the song we just played from queue
-                        guildData.FirstSong = false;
+                        // Remove the song we just played from queue
                         queue.RemoveAt(0);
 
                         await ModifyUserMessage(guildId, "now-playing");
 
-                        // Check if songlist is empty. Set FirstSong back to true if its empty
+                        // Set FirstSong back to true if queue is empty
                         if (queue.Count <= 0)
                         {
                             guildData.FirstSong = true;
                         }
 
-                        // Update guild data
                         _guildDataDict.TryUpdate(guildId, foundGuild, foundGuild);
-
                     }
                 }
             }, cTokenSource.Token);
 
             // Don't start another task if we're already playing
-            if (queue.Count <= 1)
+            if (guildData.FirstSong)
             {
+                // Update FirstSong to false & start the task
+                guildData.FirstSong = false;
+
+                _guildDataDict.TryUpdate(guildId, guildData, guildData);
+
                 streamAudioTask.Start();
             }
 
@@ -555,7 +556,20 @@ namespace DiscordBot.Services
 
                         for (int i = 2; i != queue.Count; i++)
                         {
-                            embedBuilder.Fields[0].Value += $"- {queue[i].Title} \n";
+                            if (i <= 8)
+                            {
+                                embedBuilder.Fields[0].Value += $"- {queue[i].Title} \n";
+                            }
+                            else if (i == 9 && queue.Count == 10)
+                            {
+                                embedBuilder.Fields[0].Value += $"- And 1 other song...";
+                            }
+                            else
+                            {
+                                embedBuilder.Fields[0].Value += $"- And {queue.Count - 9} other songs...";
+
+                                break;
+                            }
                         }
                     }
                     break;
