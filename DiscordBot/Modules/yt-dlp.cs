@@ -1,10 +1,8 @@
 ﻿using Discord.WebSocket;
 using DiscordBot.Models;
 using DiscordBot.Modules.Interfaces;
-using Newtonsoft.Json;
 using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
 
 namespace DiscordBot.Modules
@@ -26,24 +24,25 @@ namespace DiscordBot.Modules
                     throw new Exception($"> [ERROR]: SocketSlashCommands first parameter was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
 
-                string args = $"";
+                string args = $"--quiet " +
+                              $"--no-warnings " +
+                              $"--dump-json " +
+                              $"--extractor-args \"youtube:skip=dash\" " +
+                              $"--skip-download " +
+                              $"--http-chunk-size 1M " +
+                              $"-f bestaudio[ext=m4a] ";
 
+                // Modify arguments depending if we received a link or a query
                 if (query.Contains("https://") && (query.Contains("youtube.com") || query.Contains("youtu.be")))
                 {
-                    args = $"--quiet " +
-                           $"--no-warnings " +
-                           $"--yes-playlist " +
-                           $"--dump-json " +
-                           $"-f bestaudio[ext=m4a] " +
-                           $"\"{query}\"";
+                    args += $"--yes-playlist " +
+                            $"--concurrent-fragments 5 " +
+                            $"--playlist-items 1-15 " +
+                            $"\"{query}\"";
                 }
                 else
                 {
-                    args = $"--quiet " +
-                           $"--no-warnings " +
-                           $"--dump-json " +
-                           $"-f bestaudio[ext=m4a] " +
-                           $"\"ytsearch:{query}\"";
+                    args += $"\"ytsearch:{query}\"";
                 }
 
                 var process = new Process
@@ -73,11 +72,11 @@ namespace DiscordBot.Modules
 
                         SongData song = new SongData
                         {
-                            Title = root.GetProperty("title").GetString() ?? "",
-                            VideoUrl = root.GetProperty("original_url").GetString() ?? "",
-                            AudioUrl = root.GetProperty("url").GetString() ?? "",
-                            ThumbnailUrl = root.GetProperty("thumbnail").GetString() ?? "",
-                            Duration = TimeSpan.Parse(root.GetProperty("duration_string").GetString() ?? ""),
+                            Title = root.TryGetProperty("title", out JsonElement titleElement) ? titleElement.GetString() ?? "" : "",
+                            VideoUrl = root.TryGetProperty("original_url", out JsonElement videoUrlElement) ? videoUrlElement.GetString() ?? "" : "",
+                            AudioUrl = root.TryGetProperty("url", out JsonElement audioUrlElement) ? audioUrlElement.GetString() ?? "" : "",
+                            ThumbnailUrl = root.TryGetProperty("thumbnail", out JsonElement thumbnailElement) ? thumbnailElement.GetString() ?? "" : "",
+                            Duration = TimeSpan.Parse(root.TryGetProperty("duration_string", out JsonElement durationElement) ? durationElement.GetString() ?? "" : ""),
                             Requester = command.User,
                         };
 

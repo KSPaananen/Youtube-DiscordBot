@@ -69,8 +69,8 @@ namespace DiscordBot.Handler
             // Play music command
             var globalPlayCommand = new SlashCommandBuilder();
             globalPlayCommand.WithName("play");
-            globalPlayCommand.WithDescription("Play music in a voice chat. Supports queries and links");
-            globalPlayCommand.AddOption("query", ApplicationCommandOptionType.String, "Search music with a query or provide a link to the song", true);
+            globalPlayCommand.WithDescription("Play music in a voice chat. Supports queries, links & playlists");
+            globalPlayCommand.AddOption("query", ApplicationCommandOptionType.String, "Search for music with a query or provide a link to a song or playlist", true);
             globalAppCommandsList.Add(globalPlayCommand.Build());
 
             var globalStopPlayingCommand = new SlashCommandBuilder();
