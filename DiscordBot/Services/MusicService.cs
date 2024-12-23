@@ -11,14 +11,6 @@ using System.Reflection;
 
 namespace DiscordBot.Services
 {
-    // Interacting with objects that might not exist in ConCurrentDictinary:
-    // - To get object or values: var result = ConcurrentDictionary.TryGetValue(ulong, out var object) ? object.property : new object();
-    // - To update values: ConcurrentDictionary.AddOrUpdate(ulong, object, (key, oldValue) => oldValue);
-
-    // Interacting with objects that should exist in ConCurrentDictinary:
-    // - To update values: ConcurrentDictionary[ulong].Property = Value;
-    // - To get object or properties: var result = ConcurrentDictionary.TryGetValue(ulong, out var object) ? object.property : throw new Exception();
-
     public class MusicService : IMusicService
     {
         private DiscordSocketClient _client;
@@ -30,7 +22,6 @@ namespace DiscordBot.Services
         private ConcurrentDictionary<ulong, GuildData> _guildDataDict;
 
         // ToDo:
-        // - Different "user-requested" when user adds a playlist
         // - Quicker processing for playlists
         // - Print queue command
 
@@ -386,8 +377,12 @@ namespace DiscordBot.Services
 
                 _guildDataDict[guildId].Queue.AddRange(songList);
 
-                // Don't respond with "user-requested" if queue count is 1
-                if (_guildDataDict[guildId].Queue.Count > 1 && _guildDataDict[guildId].CurrentlyPlaying)
+                // songList having more than 1 song indicates that user has added a playlist. Provide feedback
+                if (songList.Count > 1)
+                {
+                    await RespondToSlashCommand(guildId, "user-requested-playlist", command);
+                }
+                else if (_guildDataDict[guildId].Queue.Count > 1 && _guildDataDict[guildId].CurrentlyPlaying) // Skip providing feedback if queue count is only 1
                 {
                     await RespondToSlashCommand(guildId, "user-requested", command);
                 }
@@ -428,7 +423,7 @@ namespace DiscordBot.Services
                             _guildDataDict[guildId].FirstSong = false;
 
                             // Write to outStream in pieces rather than all at once
-                            byte[] buffer = new byte[4096];
+                            byte[] buffer = new byte[8192];
                             int bytesRead;
 
                             while ((bytesRead = await ffmpegStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
@@ -553,6 +548,50 @@ namespace DiscordBot.Services
                         }
                     }
                     break;
+                case "user-requested-playlist":
+                    embedBuilder.Author = new EmbedAuthorBuilder
+                    {
+                        IconUrl = null,
+                        Name = $"{command.User.GlobalName} added a new playlist to the queue",
+                        Url = null
+                    };
+                    embedBuilder.Description = $"[{queue[queue.Count - 1].Title}]({queue[queue.Count - 1].VideoUrl})";
+                    embedBuilder.ThumbnailUrl = queue[queue.Count - 1].ThumbnailUrl;
+                    embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.Guild.Name, IconUrl = user.Guild.IconUrl });
+
+                    if (queue.Count > 2)
+                    {
+                        if (embedBuilder.Fields == null || embedBuilder.Fields.Count <= 0)
+                        {
+                            embedBuilder.Fields = new List<EmbedFieldBuilder>
+                            {
+                                new EmbedFieldBuilder
+                                {
+                                    Name = "Songs in queue",
+                                    Value = $"- {queue[1].Title} \n",
+                                }
+                            };
+                        }
+
+                        for (int i = 2; i != queue.Count; i++)
+                        {
+                            if (i <= 8)
+                            {
+                                embedBuilder.Fields[0].Value += $"- {queue[i].Title} \n";
+                            }
+                            else if (i == 9 && queue.Count == 10)
+                            {
+                                embedBuilder.Fields[0].Value += $"- And 1 other song...";
+                            }
+                            else
+                            {
+                                embedBuilder.Fields[0].Value += $"- And {queue.Count - 9} other songs...";
+
+                                break;
+                            }
+                        }
+                    }
+                    break;
                 case "stopped-playing":
                     embedBuilder.Author = new EmbedAuthorBuilder
                     {
@@ -628,7 +667,7 @@ namespace DiscordBot.Services
             // Use custom logic for "now-playing"
             if (type == "now-playing")
             {
-                if (queue.Count > 1 && guildData.FirstSong == false)
+                if ((queue.Count > 1 && guildData.FirstSong == false) || (queue.Count > 1 && guildData.CurrentlyPlaying))
                 {
                     // Store IUserMessage to guild data
                     _guildDataDict[guildId].NowPlayingMessage = (IUserMessage)await command.Channel.SendMessageAsync(embeds: [embedBuilder.Build()], components: componentBuilder.WithRows(new[] { rowBuilder }).Build());
