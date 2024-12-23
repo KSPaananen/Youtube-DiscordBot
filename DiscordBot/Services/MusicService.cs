@@ -382,7 +382,7 @@ namespace DiscordBot.Services
                 {
                     await RespondToSlashCommand(guildId, "user-requested-playlist", command);
                 }
-                else if (_guildDataDict[guildId].Queue.Count > 1 && _guildDataDict[guildId].CurrentlyPlaying) // Skip providing feedback if queue count is only 1
+                else if (_guildDataDict[guildId].CurrentlyPlaying && _guildDataDict[guildId].Queue.Count > 1) // Skip providing feedback if queue count is only 1
                 {
                     await RespondToSlashCommand(guildId, "user-requested", command);
                 }
@@ -435,7 +435,7 @@ namespace DiscordBot.Services
                         }
                         catch
                         {
-                            // Rewnew CancellationTokenSource for guild
+                            // On throw rewnew CancellationTokenSource for guild
                             _guildDataDict[guildId].cTokenSource = new CancellationTokenSource();
                         }
 
@@ -667,7 +667,7 @@ namespace DiscordBot.Services
             // Use custom logic for "now-playing"
             if (type == "now-playing")
             {
-                if ((queue.Count > 1 && guildData.FirstSong == false) || (queue.Count > 1 && guildData.CurrentlyPlaying))
+                if (queue.Count > 1)
                 {
                     // Store IUserMessage to guild data
                     _guildDataDict[guildId].NowPlayingMessage = (IUserMessage)await command.Channel.SendMessageAsync(embeds: [embedBuilder.Build()], components: componentBuilder.WithRows(new[] { rowBuilder }).Build());
