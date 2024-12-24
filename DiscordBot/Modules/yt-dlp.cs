@@ -27,20 +27,21 @@ namespace DiscordBot.Modules
                 string args = $"--quiet " +
                               $"--no-warnings " +
                               $"--dump-json " +
-                              $"--extractor-args \"youtube:skip=dash\" " +
+                              $"-N 5 " +
+                              $"--extractor-args \"youtube:skip=dash,unavailable_videos\" " +
                               $"--skip-download " +
-                              $"--http-chunk-size 1M " +
+                              $"--match-filter \"duration > 60\" " + // Minimum minute long
                               $"-f bestaudio[ext=m4a] ";
 
                 // Modify arguments depending if we received a link or a query
-                if (query.Contains("https://") && (query.Contains("youtube.com") || query.Contains("youtu.be")))
+                if (query.Contains("youtube.com") || query.Contains("youtu.be"))
                 {
                     args += $"--yes-playlist " +
-                            $"--concurrent-fragments 5 " +
-                            $"--playlist-items 1-15 " +
+                            $"--concurrent-fragments 10 " +
+                            $"--playlist-items 1-25 " +
                             $"\"{query}\"";
                 }
-                else
+                else if (!query.Contains("https://"))
                 {
                     args += $"\"ytsearch:{query}\"";
                 }

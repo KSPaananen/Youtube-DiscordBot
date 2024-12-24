@@ -21,10 +21,6 @@ namespace DiscordBot.Services
 
         private ConcurrentDictionary<ulong, GuildData> _guildDataDict;
 
-        // ToDo:
-        // - Quicker processing for playlists
-        // - Print queue command
-
         public MusicService(DiscordSocketClient client, IConfigurationRepository configurationRepository, IYtDlp ytDlp, IFFmpeg ffmpeg)
         {
             _client = client ?? throw new NullReferenceException(nameof(client));
@@ -70,7 +66,6 @@ namespace DiscordBot.Services
 
                         // Add songs to queue and start streaming audio
                         await AppendQueryToQueueAsync(command);
-
                         await StreamAudio(command);
 
                         return;
@@ -94,6 +89,8 @@ namespace DiscordBot.Services
                         // Add songs to queue and start streaming audio
                         await AppendQueryToQueueAsync(command);
                         await StreamAudio(command);
+
+                        return;
                     }
 
                 }
@@ -375,6 +372,13 @@ namespace DiscordBot.Services
                 // Get required information about the songs with yt-dlp
                 List<SongData> songList = _ytDlp.GetSongFromSlashCommand(command);
 
+                if (songList.Count <= 0)
+                {
+                    await SendErrorResponseAsync("no-song-data", command);
+
+                    return;
+                }
+
                 _guildDataDict[guildId].Queue.AddRange(songList);
 
                 // songList having more than 1 song indicates that user has added a playlist. Provide feedback
@@ -461,8 +465,8 @@ namespace DiscordBot.Services
                 }
             }, guild.cTokenSource.Token);
 
-            // Don't start another task if we're already playing
-            if (!guild.CurrentlyPlaying)
+            // Don't start another task if we're already playing or queue is empty
+            if (!guild.CurrentlyPlaying && _guildDataDict[guildId].Queue.Count > 0)
             {
                 streamAudioTask.Start();
             }
@@ -555,7 +559,6 @@ namespace DiscordBot.Services
                         Name = $"{command.User.GlobalName} added a new playlist to the queue",
                         Url = null
                     };
-                    embedBuilder.Description = $"[{queue[queue.Count - 1].Title}]({queue[queue.Count - 1].VideoUrl})";
                     embedBuilder.ThumbnailUrl = queue[queue.Count - 1].ThumbnailUrl;
                     embedBuilder.WithDefaults(new EmbedFooterBuilder { Text = user.Guild.Name, IconUrl = user.Guild.IconUrl });
 
@@ -785,6 +788,10 @@ namespace DiscordBot.Services
                         case "clear-queue-wrong-channel":
                             embedBuilder.Title = $"Couldn't clear the queue";
                             embedBuilder.Description = $"You must be connected to the same voice channel as the bot to execute **/{validCommand.CommandName}**.";
+                            break;
+                        case "no-song-data":
+                            embedBuilder.Title = $"Couldn't find songs with query";
+                            embedBuilder.Description = $"This is most likely due to filtering or an internal error.";
                             break;
                     }
 
