@@ -32,9 +32,10 @@ namespace DiscordBot.Services
                 new EmbedFieldBuilder
                 {
                     Name = "Commands" ,
-                    Value = $"- `/play` allows you to play music with search queries or links" +
-                            $"\n\n - /skip skips the currently playing song" +
-                            $"\n\n - /clear-queue skips the currently playing song",
+                    Value = $"- `/play`\n" +
+                            $"- `/stop-playing`\n" +
+                            $"- `/skip-song`\n" +
+                            $"- `/clear-queue`\n",
                     IsInline = false
                 },
             };
