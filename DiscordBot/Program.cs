@@ -23,6 +23,14 @@ builder.Services.AddLogging(config =>
     config.AddFilter("Microsoft", LogLevel.Warning);
 });
 
+// Middlewares
+builder.Services.AddSingleton<IErrorHandlerMiddleware, ErrorHandlerMiddleware>();
+
+// Repositories
+builder.Services.AddTransient<IConfigurationRepository, ConfigurationRepository>();
+
+// Services
+builder.Services.AddHostedService<DiscordClientService>(); // Add as a HostedService to run methods on app start
 builder.Services.AddSingleton<DiscordSocketClient>(provider =>
 {
     var socketConfig = new DiscordSocketConfig
@@ -48,12 +56,6 @@ builder.Services.AddSingleton<DiscordSocketClient>(provider =>
 
     return client;
 });
-
-// Repositories
-builder.Services.AddTransient<IConfigurationRepository, ConfigurationRepository>();
-
-// Services
-builder.Services.AddHostedService<DiscordClientService>(); // Add as a HostedService to run methods on app start
 builder.Services.AddSingleton<IMusicService, MusicService>();
 builder.Services.AddSingleton<IGuildService, GuildService>();
 
@@ -64,14 +66,13 @@ builder.Services.AddTransient<IButtonHandler, ButtonHandler>();
 builder.Services.AddTransient<IMessageHandler, MessageHandler>();
 builder.Services.AddTransient<IGuildHandler, GuildHandler>();
 
-// Middlewares
-builder.Services.AddSingleton<IErrorHandlerMiddleware, ErrorHandlerMiddleware>();
-
 // Modules
 builder.Services.AddTransient<IYtDlp, YtDlp>();
 builder.Services.AddTransient<IFFmpeg, FFmpeg>();
 
 var app = builder.Build();
+
+Console.WriteLine($"> Starting application...");
 
 // Execute application wrapped with an error handler
 var errorHandler = app.Services.GetRequiredService<IErrorHandlerMiddleware>();

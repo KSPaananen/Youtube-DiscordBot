@@ -61,7 +61,7 @@ namespace DiscordBot.Services
         {
             if (log.Message == null && log.Exception.Message == null)
             {
-                Console.WriteLine($"> [ERROR]: LogMessage.Message and LogMessage.Exception.Message were null in  {this.GetType().Name} : Play()");
+                Console.WriteLine($"> [ERROR]: LogMessage.Message and LogMessage.Exception.Message were null at {this.GetType().Name} : Play()");
 
                 return Task.CompletedTask;
             }
@@ -118,15 +118,13 @@ namespace DiscordBot.Services
             // Create new slash commands on app start
             _slashCommandHandler.CreateSlashCommandsAsync();
 
-            Console.WriteLine($"> Application ready \n");
-
+            Console.WriteLine($"> Discord client ready");
+            
             return Task.CompletedTask;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine($"> Starting application...");
-
             // Login
             string botToken = _configurationRepository.GetBotToken();
 

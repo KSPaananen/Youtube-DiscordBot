@@ -22,7 +22,6 @@ namespace DiscordBot.Repositories
             return _config.GetSection("bot:prefix").Value ?? throw new NullReferenceException();
         }
 
-
         public string GetAppID()
         {
             return _config.GetSection("bot:app_id").Value ?? throw new NullReferenceException();
@@ -40,8 +39,9 @@ namespace DiscordBot.Repositories
 
         public string GetDiscordLink()
         {
-            return _config.GetSection("discord:link").Value ?? "";
+            return _config.GetSection("discord:server_link").Value ?? "";
         }
+
 
     }
 }

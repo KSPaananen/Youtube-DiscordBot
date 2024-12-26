@@ -17,7 +17,7 @@ namespace DiscordBot.Middleware
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"> {ex.Message}");
+                Console.WriteLine($"> [ERROR] {ex.Message}");
             }
         }
 
@@ -29,7 +29,7 @@ namespace DiscordBot.Middleware
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"> {ex.Message}");
+                Console.WriteLine($"> [ERROR] {ex.Message}");
 
                 return default!;
             }
