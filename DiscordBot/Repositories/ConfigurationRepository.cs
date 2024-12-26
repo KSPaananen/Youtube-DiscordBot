@@ -1,5 +1,6 @@
 ﻿using DiscordBot.Repositories.Interfaces;
 using Microsoft.Extensions.Configuration;
+using System.Reflection;
 
 namespace DiscordBot.Repositories
 {
@@ -14,7 +15,7 @@ namespace DiscordBot.Repositories
 
         public string GetBotToken()
         {
-            return _config.GetSection("Bot:Token").Value ?? throw new NullReferenceException();
+            return _config.GetSection("Bot:Token").Value ?? throw new NullReferenceException($"Bot:Token was null at {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
         }
 
 

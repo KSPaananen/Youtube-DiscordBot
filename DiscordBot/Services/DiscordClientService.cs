@@ -53,8 +53,17 @@ namespace DiscordBot.Services
             _client.UserUnbanned += _guildHandler.HandleUserUnBanned;
             _client.UserVoiceStateUpdated += _guildHandler.HandleUserVoiceStateUpdated;
 
+            _client.Disconnected += Disconnected;
             _client.Ready += ClientReady;
             _client.Log += LogAsync;
+        }
+
+        private Task Disconnected(Exception ex)
+        {
+            // Dispose client on 401
+            Dispose();
+
+            return Task.CompletedTask;
         }
 
         private Task LogAsync(LogMessage log)
@@ -125,13 +134,19 @@ namespace DiscordBot.Services
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            // Login
-            string botToken = _configurationRepository.GetBotToken();
+            // Log in if bot token is present
+            if (_configurationRepository.GetBotToken() is string token)
+            {
+                Console.WriteLine($"> Logging in...");
 
-            Console.WriteLine($"> Logging in...");
+                await _client.LoginAsync(TokenType.Bot, token, true);
 
-            await _client.LoginAsync(TokenType.Bot, botToken, true);
-            await _client.StartAsync();
+                await _client.StartAsync();
+
+                var test = _client.LoginState;
+
+                return;
+            }
         }
 
         public async Task StopAsync(CancellationToken cancellationToken)
@@ -150,6 +165,8 @@ namespace DiscordBot.Services
 
         public void Dispose()
         {
+            Console.WriteLine($"> Disposing client...");
+
             _client.Dispose();
         }
 
