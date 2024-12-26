@@ -10,11 +10,15 @@ using DiscordBot.Repositories;
 using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services;
 using DiscordBot.Services.Interfaces;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+
+// Add dockers enviromental variables to configuration
+builder.Configuration.AddJsonFile("appsettings.json", true, true).AddEnvironmentVariables();
 
 // Configure logging
 builder.Services.AddLogging(config =>

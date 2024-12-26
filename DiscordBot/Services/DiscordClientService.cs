@@ -119,7 +119,7 @@ namespace DiscordBot.Services
             _slashCommandHandler.CreateSlashCommandsAsync();
 
             Console.WriteLine($"> Discord client ready");
-            
+
             return Task.CompletedTask;
         }
 

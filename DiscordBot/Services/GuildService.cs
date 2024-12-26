@@ -1,7 +1,6 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using DiscordBot.Extensions;
-using DiscordBot.Repositories.Interfaces;
 using DiscordBot.Services.Interfaces;
 
 namespace DiscordBot.Services
@@ -10,15 +9,9 @@ namespace DiscordBot.Services
     {
         private DiscordSocketClient _client;
 
-        private IConfigurationRepository _configurationRepository;
-
-        private string _discordLink;
-
-        public GuildService(DiscordSocketClient client, IConfigurationRepository configurationRepository)
+        public GuildService(DiscordSocketClient client)
         {
             _client = client ?? throw new NullReferenceException(nameof(client));
-            _configurationRepository = configurationRepository ?? throw new NullReferenceException(nameof(configurationRepository));
-            _discordLink = _configurationRepository.GetDiscordLink();
         }
 
         public async Task SendJoinedGuildMessage(SocketGuild guild)
@@ -45,16 +38,6 @@ namespace DiscordBot.Services
                     IsInline = false
                 },
             };
-
-            if (_discordLink != "")
-            {
-                embedBuilder.Fields.Add(new EmbedFieldBuilder
-                {
-                    Name = $"Discord server",
-                    Value = $"Join the developers [Discord server]({_discordLink}) to receive support, report bugs or suggest new features.",
-                    IsInline = true
-                });
-            }
 
             embedBuilder.WithDefaults();
 
