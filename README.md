@@ -1,10 +1,11 @@
 # Youtube-DiscordBot
 A simple-ish discord music bot with youtube support.
 
-## Libraries used
+## Libraries & tools
+### Libraries used:
 - [Discord.NET](https://github.com/discord-net/Discord.Net)
 
-## Integrated Tools
+### Integrated tools used
 - [FFmpeg](https://github.com/FFmpeg/FFmpeg) for stream & audio processing
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) for youtube support
 
@@ -36,7 +37,7 @@ For optimal performance it's recommended to run Docker on a Linux-based operatin
      - Press `ctrl + c`
      - Run `docker stop YourContainerName`
 
-5. Running the container again after creation
+5. Running the container after creation
    - Run `docker start YourContainerName`
      - Use `docker ps -a` to see all created containers
 
@@ -47,7 +48,7 @@ After pulling the latest image with command prompt you can use Docker desktop to
 ### How can i change the bot token?
 To host another bot you need to create a new container with the same image. Repeat step 3, but pass a different token and container name.
 
-### Docker commands you may need with this application
+## Docker commands you may need with this application
 - `docker ps -a` to see all containers
 - `docker images` to see all images
 - `docker run -e Bot__Token=YourBotToken --name YourContainerName imagename:tag` to create a new container
