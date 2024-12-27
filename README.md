@@ -2,10 +2,10 @@
 A simple-ish discord music bot with youtube support.
 
 ## Libraries & tools
-### Libraries used:
+### Libraries
 - [Discord.NET](https://github.com/discord-net/Discord.Net)
 
-### Integrated tools used
+### Integrated tools
 - [FFmpeg](https://github.com/FFmpeg/FFmpeg) for stream & audio processing
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) for youtube support
 
@@ -14,7 +14,7 @@ A simple-ish discord music bot with youtube support.
 - Control the bot with slashcommands & buttons
 - Queue system
 
-## Slashcommands
+### Slashcommands
 - /play
 - /skip-song
 - /stop-playing
