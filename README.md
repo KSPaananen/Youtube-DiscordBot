@@ -28,7 +28,7 @@ For optimal performance it's recommended to run Docker on a Linux-based operatin
 
 3. Pull the latest image from GitHub's Container registry
    - Run `docker pull ghcr.io/kspaananen/youtube-discordbot:latest`
-   - Verify you were able to pull the image with `docker images`
+   - Verify you were able to pull the image by running `docker images`
 
 4. Run the image inside a new container
    - Run `docker run -e Bot__Token=YourBotToken --name YourContainerName ghcr.io/kspaananen/youtube-discordbot:latest`
