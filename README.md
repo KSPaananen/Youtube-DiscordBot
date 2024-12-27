@@ -1,15 +1,7 @@
 # Youtube-DiscordBot
 A simple-ish discord music bot with youtube support.
 
-## Libraries & tools
-### Libraries
-- [Discord.NET](https://github.com/discord-net/Discord.Net)
-
-### Integrated tools
-- [FFmpeg](https://github.com/FFmpeg/FFmpeg) for stream & audio processing
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for youtube support
-
-## Features
+### Features
 - Supports search queries, direct links to videos and links to playlists/mixes/radios
 - Control the bot with slashcommands & buttons
 - Queue system
@@ -19,6 +11,14 @@ A simple-ish discord music bot with youtube support.
 - /skip-song
 - /stop-playing
 - /clear-queue
+
+## Libraries & tools
+### Libraries
+- [Discord.NET](https://github.com/discord-net/Discord.Net)
+
+### Integrated tools
+- [FFmpeg](https://github.com/FFmpeg/FFmpeg) for stream & audio processing
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for youtube support
 
 ## Running the bot with command prompt
 For optimal performance it's recommended to run Docker on a Linux-based operating system as the host OS. Windows is fine, but expect reduced performance as the number of servers increases.
