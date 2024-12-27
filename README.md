@@ -31,7 +31,8 @@ For optimal performance it's recommended to run Docker on a Linux-based operatin
    - Verify you were able to pull the image with `docker images`
 
 4. Run the image inside a new container
-   - Run `docker run -e Bot__Token=YourBotToken --name YourContainerName ghcr.io/kspaananen/youtube-discordbot:latest `. Replace `YourBotToken` with your bots token & `YourContainerName` with your desired container name
+   - Run `docker run -e Bot__Token=YourBotToken --name YourContainerName ghcr.io/kspaananen/youtube-discordbot:latest`
+     - Replace `YourBotToken` with your bots token & `YourContainerName` with a desired name for the container
    - To stop the container you can either:
      - Press `ctrl + c`
      - Run `docker stop YourContainerName`
