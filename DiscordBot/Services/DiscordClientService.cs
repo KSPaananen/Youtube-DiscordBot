@@ -60,7 +60,6 @@ namespace DiscordBot.Services
 
         private Task Disconnected(Exception ex)
         {
-            // Dispose client on 401
             Dispose();
 
             return Task.CompletedTask;
@@ -149,18 +148,9 @@ namespace DiscordBot.Services
             }
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken)
+        public Task StopAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine($"> Logging out");
-
-            // Logout client
-            await _client.LogoutAsync();
-
-            // Stop client
-            await _client.StopAsync();
-
-            // Inform user on console
-            Console.WriteLine($"> {_client.CurrentUser.Username} stopped");
+            return Task.CompletedTask;
         }
 
         public void Dispose()
@@ -168,6 +158,8 @@ namespace DiscordBot.Services
             Console.WriteLine($"> Disposing client...");
 
             _client.Dispose();
+
+            return;
         }
 
 
