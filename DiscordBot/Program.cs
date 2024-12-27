@@ -81,4 +81,4 @@ Console.WriteLine($"> Starting application...");
 // Execute application wrapped with an error handler
 var errorHandler = app.Services.GetRequiredService<IErrorHandlerMiddleware>();
 
-await app.RunAsync();
+await errorHandler.Execute(async () => await app.RunAsync());
