@@ -1,4 +1,4 @@
-## Youtube-DiscordBot
+# Youtube-DiscordBot
 A simple-ish discord music bot with youtube support.
 
 ## Libraries used
@@ -10,7 +10,7 @@ A simple-ish discord music bot with youtube support.
 
 ## Features
 - Supports search queries, direct links to videos and links to playlists/mixes/radios
-- Control bot with either slashcommands or buttons
+- Control the bot with slashcommands & buttons
 - Queue system
 
 ## Slashcommands
@@ -31,7 +31,7 @@ For optimal performance it's recommended to run Docker on a Linux-based operatin
 
 4. Creating a new container and running the image inside it
    - Run `docker run -e Bot__Token=YourBotToken --name YourContainerName ghcr.io/kspaananen/youtube-discordbot:latest`
-     - Replace `YourBotToken` with your bots token and `YourContainerName` with a desired containers name
+     - Replace `YourBotToken` with your bot token & `YourContainerName` with a proper container name
    - To stop the container you can either:
      - Press `ctrl + c`
      - Run `docker stop YourContainerName`
@@ -40,10 +40,11 @@ For optimal performance it's recommended to run Docker on a Linux-based operatin
    - Run `docker start YourContainerName`
      - Use `docker ps -a` to see all created containers
 
-### I hate using command prompt
+## Q&A
+### Do i have to use command prompt?
 After pulling the latest image with command prompt you can use Docker desktop to handle containers and images with a graphical user interface. Just make sure to include enviromental variable Bot__Token with your bot token under 'Optional settings' when running images in a new container.
 
-### I want to change my bot token
+### How can i change the bot token?
 To host another bot you need to create a new container with the same image. Repeat step 3, but pass a different token and container name.
 
 ### Docker commands you may need with this application
