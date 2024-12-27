@@ -31,7 +31,7 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["DiscordBot/DiscordBot.csproj", "DiscordBot/"]
-RUN dotnet restore "./DiscordBot/DiscordBot.csproj"
+RUN dotnet restore "DiscordBot/DiscordBot.csproj"
 COPY . . 
 WORKDIR "/src/DiscordBot"
 RUN dotnet build "./DiscordBot.csproj" -c $BUILD_CONFIGURATION -o /app/build
