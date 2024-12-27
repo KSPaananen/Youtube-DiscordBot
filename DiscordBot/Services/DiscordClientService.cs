@@ -53,8 +53,16 @@ namespace DiscordBot.Services
             _client.UserUnbanned += _guildHandler.HandleUserUnBanned;
             _client.UserVoiceStateUpdated += _guildHandler.HandleUserVoiceStateUpdated;
 
+            _client.Disconnected += Disconnected;
             _client.Ready += ClientReady;
             _client.Log += LogAsync;
+        }
+
+        private Task Disconnected(Exception ex)
+        {
+            Dispose();
+
+            return Task.CompletedTask;
         }
 
         private Task LogAsync(LogMessage log)
@@ -119,38 +127,39 @@ namespace DiscordBot.Services
             _slashCommandHandler.CreateSlashCommandsAsync();
 
             Console.WriteLine($"> Discord client ready");
-            
+
             return Task.CompletedTask;
         }
 
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            // Login
-            string botToken = _configurationRepository.GetBotToken();
+            // Log in if bot token is present
+            if (_configurationRepository.GetBotToken() is string token)
+            {
+                Console.WriteLine($"> Logging in...");
 
-            Console.WriteLine($"> Logging in...");
+                await _client.LoginAsync(TokenType.Bot, token, true);
 
-            await _client.LoginAsync(TokenType.Bot, botToken, true);
-            await _client.StartAsync();
+                await _client.StartAsync();
+
+                var test = _client.LoginState;
+
+                return;
+            }
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken)
+        public Task StopAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine($"> Logging out");
-
-            // Logout client
-            await _client.LogoutAsync();
-
-            // Stop client
-            await _client.StopAsync();
-
-            // Inform user on console
-            Console.WriteLine($"> {_client.CurrentUser.Username} stopped");
+            return Task.CompletedTask;
         }
 
         public void Dispose()
         {
+            Console.WriteLine($"> Disposing client...");
+
             _client.Dispose();
+
+            return;
         }
 
 

@@ -38,7 +38,7 @@ namespace DiscordBot.Services
             {
                 if (command.User is not IGuildUser user || command.GuildId is not ulong guildId)
                 {
-                    throw new Exception($"> [ERROR]: SocketSlashCommand.User was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
+                    throw new Exception($"> SocketSlashCommand.User was null in {this.GetType().Name} : {MethodBase.GetCurrentMethod()!.Name}");
                 }
 
                 // Try finding an already existing guild in the dictionary

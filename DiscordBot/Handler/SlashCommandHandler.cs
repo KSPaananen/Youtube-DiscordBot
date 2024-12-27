@@ -41,10 +41,10 @@ namespace DiscordBot.Handler
                         case "play":
                             await _musicService.PlayAsync( command);
                             break;
-                        case "stop":
+                        case "stop-playing":
                             await _musicService.StopPlayingAsync(guildId, command);
                             break;
-                        case "skip":
+                        case "skip-song":
                             await _musicService.SkipSongAsync(guildId, command);
                             break;
                         case "clear-queue":
@@ -69,23 +69,23 @@ namespace DiscordBot.Handler
             // Play music command
             var globalPlayCommand = new SlashCommandBuilder();
             globalPlayCommand.WithName("play");
-            globalPlayCommand.WithDescription("Play music in a voice chat. Supports queries, links & playlists");
+            globalPlayCommand.WithDescription("Play music in a voice chat. Supports queries, links to individual songs and playlists");
             globalPlayCommand.AddOption("query", ApplicationCommandOptionType.String, "Search for music with a query or provide a link to a song or playlist", true);
             globalAppCommandsList.Add(globalPlayCommand.Build());
 
             var globalStopPlayingCommand = new SlashCommandBuilder();
-            globalStopPlayingCommand.WithName("stop");
-            globalStopPlayingCommand.WithDescription("Stop playing and disconnect the bot from the voice channel");
+            globalStopPlayingCommand.WithName("stop-playing");
+            globalStopPlayingCommand.WithDescription("Stops playing and disconnects the bot from the voice channel");
             globalAppCommandsList.Add(globalStopPlayingCommand.Build());
 
             var globalSkipCommand = new SlashCommandBuilder();
-            globalSkipCommand.WithName("skip");
-            globalSkipCommand.WithDescription("Skip the song thats currently playing");
+            globalSkipCommand.WithName("skip-song");
+            globalSkipCommand.WithDescription("Skips the song thats currently playing");
             globalAppCommandsList.Add(globalSkipCommand.Build());
 
             var globalClearQueueCommand = new SlashCommandBuilder();
             globalClearQueueCommand.WithName("clear-queue");
-            globalClearQueueCommand.WithDescription("Clear the song queue");
+            globalClearQueueCommand.WithDescription("Clears the queue");
             globalAppCommandsList.Add(globalClearQueueCommand.Build());
 
             var requestOptions = new RequestOptions()
